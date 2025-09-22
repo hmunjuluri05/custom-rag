@@ -2,6 +2,48 @@
 
 A modular Retrieval-Augmented Generation (RAG) system with document upload capabilities and a web-based chat interface.
 
+## System Workflow
+
+The RAG system operates through a clear two-phase workflow:
+
+### 📥 **Document Ingestion Workflow**
+```
+Documents → Embedding Model → Vector Database
+```
+
+1. **Document Upload**: PDF, DOCX, XLSX, TXT files uploaded via web interface
+2. **Text Extraction**: Content extracted and processed from various file formats
+3. **Text Chunking**: Documents split into manageable chunks using configurable strategies
+4. **Embedding Generation**: **Embedding Model** converts each chunk into vector embeddings
+5. **Vector Storage**: Embeddings stored in ChromaDB for fast similarity search
+
+### 💬 **Query & Response Workflow**
+```
+User Question → Embedding Model → Vector Search → LLM Model → Response
+```
+
+1. **User Query**: Question submitted through chat interface
+2. **Query Embedding**: **Embedding Model** converts question into vector representation
+3. **Similarity Search**: System finds most relevant document chunks using vector similarity
+4. **Context Assembly**: Retrieved chunks combined with user question
+5. **Response Generation**: **LLM Model** generates intelligent, contextual response
+6. **Answer Delivery**: Final answer delivered to user with source attribution
+
+### 🔄 **Model Roles**
+
+| Model Type | Usage Phase | Purpose | Can Change Without Reprocessing? |
+|------------|-------------|---------|-----------------------------------|
+| **Embedding Model** | Document Ingestion + Query | Convert text to vectors for search | ❌ No - requires reprocessing all documents |
+| **LLM Model** | Response Generation Only | Generate intelligent responses | ✅ Yes - only affects future responses |
+
+### 🎯 **Key Benefits of This Architecture**
+
+- **Separation of Concerns**: Search and response generation are independent
+- **Flexible LLM Selection**: Change response generation models without data migration
+- **Efficient Search**: Embedding-based similarity search finds relevant content quickly
+- **Source Attribution**: Responses linked back to original documents
+- **Scalable**: Add documents incrementally without reprocessing existing ones
+
 ## Architecture
 
 The system is organized into separate modules within the `src/` folder:
@@ -102,100 +144,252 @@ results = await rag.query("What is the main topic?", top_k=5)
 
 ### Embedding Models
 
-The system supports multiple high-quality embedding models through **SentenceTransformers** (Hugging Face). You can change the global embedding model through the Admin Panel Settings.
+The system supports **16 different embedding models** from **3 providers**: local SentenceTransformers models, OpenAI API models, and Google API models. You can change the global embedding model through the Admin Panel Settings.
 
-#### Model Providers & Sources
+#### Understanding Embedding Models
 
-The embedding models come from different research organizations and are distributed through **Sentence-Transformers** (Hugging Face). Here are the actual providers for each model:
+**What are embeddings?**
+Embeddings convert your documents into numerical representations (vectors) that capture semantic meaning. This allows the system to find relevant documents even when the exact words don't match.
 
-**Microsoft Research Models:**
-- `all-MiniLM-L6-v2` - Microsoft Research
-- `all-MiniLM-L12-v2` - Microsoft Research
-- `all-mpnet-base-v2` - Microsoft Research
-- `all-roberta-large-v1` - Microsoft Research (based on Facebook's RoBERTa)
+**Why does the choice matter?**
+- **Better models** = more accurate document retrieval
+- **Faster models** = quicker search responses
+- **Different models** excel at different tasks (general vs Q&A vs multilingual)
 
-**Specialized Training Models:**
-- `multi-qa-mpnet-base-dot-v1` - Sentence-Transformers team (fine-tuned on Q&A datasets)
-- `multi-qa-MiniLM-L6-cos-v1` - Sentence-Transformers team (fine-tuned on Q&A datasets)
-- `msmarco-distilbert-base-v4` - Microsoft Research (MS MARCO dataset)
+#### Provider Comparison
 
-**Multilingual Models:**
-- `paraphrase-multilingual-MiniLM-L12-v2` - Sentence-Transformers team
-- `paraphrase-multilingual-mpnet-base-v2` - Sentence-Transformers team
+| Provider | Models | Cost | Privacy | Setup Required |
+|----------|--------|------|---------|----------------|
+| **Local (SentenceTransformers)** | 11 models | 🆓 Free | 🔒 Complete privacy | ✅ None |
+| **OpenAI** | 3 models | 💰 Paid API | ⚠️ Data sent to OpenAI | 🔑 API Key |
+| **Google** | 2 models | 🆓/💰 Free tier + Paid | ⚠️ Data sent to Google | 🔑 API Key |
 
-**Alternative Models:**
-- `all-distilroberta-v1` - Sentence-Transformers team (based on Hugging Face's DistilRoBERTa)
+#### 🌐 **External API Models** (Requires API Key)
 
-**Distribution Platform:** All models are distributed through **Hugging Face Hub** and accessed via the **Sentence-Transformers** library.
+##### **OpenAI Embedding Models**
 
-#### Recommended Models
+| Model | Dimensions | Cost | Description | Best For |
+|-------|------------|------|-------------|----------|
+| **text-embedding-3-large** | 3072 | $0.13/1M tokens | 🏆 OpenAI's most capable model | Maximum accuracy, large documents |
+| **text-embedding-3-small** | 1536 | $0.02/1M tokens | ⚡ Fast and efficient | Cost-effective, good performance |
+| **text-embedding-ada-002** | 1536 | $0.10/1M tokens | 📊 Previous generation (legacy) | Legacy applications |
 
-| Model | Provider | Dimensions | Size | Description | Use Case |
-|-------|----------|------------|------|-------------|----------|
-| **all-mpnet-base-v2** (default) | Microsoft Research | 768 | ~420MB | High quality model with better accuracy | General purpose, best quality |
-| **all-MiniLM-L6-v2** | Microsoft Research | 384 | ~80MB | Fast and efficient model | Speed-critical applications |
-| **sentence-transformers/all-MiniLM-L12-v2** | Microsoft Research | 384 | ~130MB | Balanced model between speed and accuracy | Balanced performance |
+**Setup Required:** OpenAI API key from [platform.openai.com](https://platform.openai.com)
 
-#### Specialized Models
+##### **Google Embedding Models**
 
-| Model | Provider | Dimensions | Size | Description | Use Case |
-|-------|----------|------------|------|-------------|----------|
-| **sentence-transformers/multi-qa-mpnet-base-dot-v1** | Sentence-Transformers Team | 768 | ~420MB | Optimized for question-answering tasks | Q&A systems, chatbots |
-| **sentence-transformers/multi-qa-MiniLM-L6-cos-v1** | Sentence-Transformers Team | 384 | ~80MB | Fast model optimized for question-answering | Fast Q&A applications |
-| **sentence-transformers/msmarco-distilbert-base-v4** | Microsoft Research | 768 | ~250MB | Optimized for passage retrieval and search | Document search, retrieval |
+| Model | Dimensions | Cost | Description | Best For |
+|-------|------------|------|-------------|----------|
+| **models/embedding-001** | 768 | Free quota + paid | 🌍 General-purpose embedding | Balanced performance |
+| **models/text-embedding-004** | 768 | Free quota + paid | 🆕 Latest Google model | Latest features, improved accuracy |
 
-#### Multilingual Models
+**Setup Required:** Google AI API key from [ai.google.dev](https://ai.google.dev)
 
-| Model | Provider | Dimensions | Size | Description | Languages |
-|-------|----------|------------|------|-------------|-----------|
-| **paraphrase-multilingual-MiniLM-L12-v2** | Sentence-Transformers Team | 384 | ~420MB | Multilingual model supporting 50+ languages | Multi-language documents |
-| **sentence-transformers/paraphrase-multilingual-mpnet-base-v2** | Sentence-Transformers Team | 768 | ~970MB | High-quality multilingual model | Premium multi-language support |
+#### 💻 **Local Models** (Free, Private)
 
-#### High Performance Models
+These models run entirely on your computer - no API keys needed, complete privacy.
 
-| Model | Provider | Dimensions | Size | Description | Use Case |
-|-------|----------|------------|------|-------------|----------|
-| **sentence-transformers/all-roberta-large-v1** | Microsoft Research | 1024 | ~1.3GB | Large high-performance model (slower but very accurate) | Maximum accuracy needs |
+##### **Recommended Local Models**
 
-#### Alternative Models
+| Model | Dimensions | Size | Description | Best For |
+|-------|------------|------|-------------|----------|
+| **all-mpnet-base-v2** ⭐ | 768 | ~420MB | 🎯 Default - high quality | Most users, best accuracy |
+| **all-MiniLM-L6-v2** | 384 | ~80MB | ⚡ Fastest processing | Speed-critical applications |
+| **all-MiniLM-L12-v2** | 384 | ~130MB | ⚖️ Balanced speed/accuracy | Good compromise |
 
-| Model | Provider | Dimensions | Size | Description | Use Case |
-|-------|----------|------------|------|-------------|----------|
-| **all-distilroberta-v1** | Sentence-Transformers Team | 768 | ~290MB | Distilled RoBERTa model with good performance | Alternative to MPNet |
+##### **Specialized Local Models**
 
-#### Model Selection Guidelines
+| Model | Dimensions | Size | Description | Best For |
+|-------|------------|------|-------------|----------|
+| **multi-qa-mpnet-base-dot-v1** | 768 | ~420MB | ❓ Q&A optimized | Question-answering systems |
+| **multi-qa-MiniLM-L6-cos-v1** | 384 | ~80MB | ❓ Fast Q&A | Quick Q&A applications |
+| **msmarco-distilbert-base-v4** | 768 | ~250MB | 🔍 Search optimized | Document search, retrieval |
 
-- **For most users**: Use `all-mpnet-base-v2` (default) for best quality
-- **For speed**: Use `all-MiniLM-L6-v2` for fastest processing
-- **For multilingual content**: Use `paraphrase-multilingual-MiniLM-L12-v2`
-- **For Q&A systems**: Use `multi-qa-mpnet-base-dot-v1`
-- **For maximum accuracy**: Use `all-roberta-large-v1` (if you have sufficient resources)
+##### **Multilingual Local Models**
 
-#### Changing Embedding Models
+| Model | Dimensions | Size | Description | Languages |
+|-------|------------|------|-------------|-----------|
+| **paraphrase-multilingual-MiniLM-L12-v2** | 384 | ~420MB | 🌍 50+ languages | Multi-language docs |
+| **paraphrase-multilingual-mpnet-base-v2** | 768 | ~970MB | 🌍 Premium multilingual | High-quality multi-language |
 
-⚠️ **Important**: Changing the embedding model requires handling existing documents:
+##### **High Performance Local Models**
 
-1. **Settings Access**: Go to Admin Panel → Settings → Global Embedding Model
-2. **Model Selection**: Choose from the dropdown list
-3. **Document Handling**:
-   - **Change model only**: Existing documents become incompatible and need re-upload
-   - **Change model and clear documents**: All existing documents are removed
+| Model | Dimensions | Size | Description | Best For |
+|-------|------------|------|-------------|----------|
+| **all-roberta-large-v1** | 1024 | ~1.3GB | 🚀 Maximum accuracy (slower) | When accuracy is critical |
+| **all-distilroberta-v1** | 768 | ~290MB | 🔄 Alternative to MPNet | Different architecture option |
 
-#### Technical Notes
+#### 🎯 **Choosing the Right Embedding Model**
 
-- All models use **cosine similarity** for document matching
-- Higher dimensions generally mean better accuracy but slower processing
-- Model size affects download time on first use
-- All models are cached locally after first download
+**For beginners:**
+- Start with **all-mpnet-base-v2** (default) - works great for most use cases
 
-### Chunking Settings
+**For specific needs:**
+- **Maximum accuracy**: OpenAI `text-embedding-3-large` (paid) or local `all-roberta-large-v1`
+- **Speed priority**: Local `all-MiniLM-L6-v2` or OpenAI `text-embedding-3-small`
+- **Cost-effective**: Local models (free) or Google models (free tier)
+- **Privacy critical**: Any local model
+- **Multilingual**: Local `paraphrase-multilingual-*` models
+- **Q&A systems**: Local `multi-qa-*` models or any external model
 
-```python
-rag_system = RAGSystem(
-    chunk_size=1000,      # Words per chunk
-    chunk_overlap=200     # Overlap between chunks
-)
+**Quality vs Speed vs Cost:**
 ```
+🏆 Quality:    External (OpenAI/Google) > Large Local > Standard Local
+⚡ Speed:      Small Local > Standard Local > External APIs
+💰 Cost:      Local (Free) > Google (Free tier) > OpenAI (Paid)
+🔒 Privacy:   Local (Complete) > External (Data sent to provider)
+```
+
+### Large Language Models (LLMs)
+
+The system supports **intelligent response generation** using Large Language Models. You can choose between simple context display or AI-powered responses.
+
+#### 🤖 **Response Generation Options**
+
+| Option | Description | Cost | Privacy | Quality |
+|--------|-------------|------|---------|---------|
+| **OpenAI (GPT)** | AI writes intelligent responses | 💰 Paid API | ⚠️ Data sent to OpenAI | 🎯 Excellent |
+| **Google (Gemini)** | AI writes intelligent responses | 🆓/💰 Free tier + Paid | ⚠️ Data sent to Google | 🎯 Excellent |
+
+#### 📋 **Response Examples**
+
+**Question:** "What is our company's vacation policy?"
+
+**LLM-Generated Response:**
+```
+Based on your Employee Handbook, here's your vacation policy:
+
+**Entitlement:** You get 15 paid vacation days per year
+
+**How to request:** Submit requests at least 2 weeks in advance
+
+**Additional notes:** The policy mentions unused days don't roll over, so use them before year-end.
+
+*Source: Employee_Handbook.pdf, pages 12-13*
+```
+
+#### 🌐 **External LLM Models**
+
+##### **OpenAI Models**
+
+| Model | Cost | Description | Best For |
+|-------|------|-------------|----------|
+| **gpt-4o** | $5.00/1M tokens in, $15.00/1M out | 🏆 Most capable model | Complex analysis, reasoning |
+| **gpt-4o-mini** | $0.15/1M tokens in, $0.60/1M out | ⚡ Fast and cost-effective | Most use cases |
+| **gpt-3.5-turbo** | $0.50/1M tokens in, $1.50/1M out | 📊 Reliable workhorse | General Q&A, summaries |
+
+##### **Google Models**
+
+| Model | Cost | Description | Best For |
+|-------|------|-------------|----------|
+| **gemini-1.5-flash** | Free tier available | ⚡ Fast responses | Quick answers |
+| **gemini-1.5-pro** | Free tier available | 🏆 Advanced reasoning | Complex documents |
+| **gemini-pro** | Free tier available | 📊 Balanced performance | General use |
+
+#### 🎯 **Choosing the Right LLM**
+
+**For beginners:**
+- Start with **Google Gemini** (free tier) for intelligent responses without cost
+- Upgrade to **OpenAI GPT-4o-mini** for more advanced capabilities
+
+**For specific needs:**
+- **Best quality responses**: OpenAI GPT-4o or Google Gemini Pro
+- **Cost-effective**: Google models (free tier) or OpenAI GPT-4o-mini
+- **Fast responses**: Google Gemini Flash or OpenAI GPT-4o-mini
+- **Complex documents**: OpenAI GPT-4o or Google Gemini Pro
+
+**Why use LLM models:**
+- **Intelligent responses**: Get explanations, summaries, and contextual answers
+- **Source attribution**: Responses include references to source documents
+- **Better user experience**: Natural language responses instead of raw text chunks
+
+### Document Chunking Strategies
+
+The system offers **9 different chunking strategies** to split your documents optimally for search and retrieval.
+
+#### 🧩 **Understanding Chunking**
+
+**What is chunking?**
+Large documents are split into smaller, overlapping pieces (chunks) that fit within the embedding model's limits. Good chunking improves search accuracy.
+
+**Why does chunking matter?**
+- **Better chunks** = more relevant search results
+- **Right size** = captures complete thoughts without cutting them off
+- **Proper overlap** = ensures important information isn't lost at boundaries
+
+#### 📊 **Available Chunking Strategies**
+
+##### **🏆 Recommended (LangChain-based)**
+
+| Strategy | Description | Best For | Parameters |
+|----------|-------------|----------|------------|
+| **Recursive Character** ⭐ | Intelligently splits by multiple separators | Most documents, production use | chunk_size, overlap |
+| **Token-based (GPT)** | Splits by token count (GPT-compatible) | LLM integration, API limits | chunk_size, overlap, model |
+| **Character-based** | Simple character splitting | Basic needs | chunk_size, overlap |
+
+##### **📝 Custom Strategies**
+
+| Strategy | Description | Best For | Parameters |
+|----------|-------------|----------|------------|
+| **Word-based** | Splits by word count with sentence preservation | General purpose, balanced | chunk_size, overlap, preserve_sentences |
+| **Sentence-based** | Splits at sentence boundaries | Preserving context, Q&A | chunk_size, overlap |
+| **Paragraph-based** | Splits at paragraph boundaries | Structured documents | chunk_size, overlap |
+| **Semantic-based** | Advanced semantic similarity splitting | Research, complex analysis | chunk_size, overlap |
+| **Fixed Character Size** | Fixed character-length chunks | Consistent sizing needs | chunk_size, overlap |
+| **SentenceTransformers Token** | Optimized for embedding models | Embedding optimization | tokens_per_chunk, overlap |
+
+#### ⚙️ **Configuration Options**
+
+**Chunk Size:**
+- **Small (500-800)**: Better for precise answers, more chunks
+- **Medium (1000-1500)**: Balanced approach (default: 1000)
+- **Large (2000-3000)**: Better context, fewer chunks
+
+**Chunk Overlap:**
+- **Low (100-150)**: Less redundancy, faster processing
+- **Medium (200-300)**: Balanced approach (default: 200)
+- **High (400-500)**: Maximum context preservation
+
+**Additional Options:**
+- **Preserve Sentences**: Don't split mid-sentence (recommended)
+- **Preserve Paragraphs**: Keep paragraph structure intact
+
+#### 🎯 **Choosing the Right Strategy**
+
+**For beginners:**
+- Use **Recursive Character** (default) - works great for most documents
+
+**For specific document types:**
+- **Technical docs**: Word-based with sentence preservation
+- **Legal documents**: Paragraph-based to preserve structure
+- **Q&A content**: Sentence-based for clean answers
+- **Research papers**: Semantic-based for intelligent splitting
+- **API integration**: Token-based for precise token control
+
+**Configuration in UI:**
+1. Go to **Admin Panel → Upload Documents**
+2. Expand **Chunking Configuration** section
+3. Choose strategy and adjust parameters
+4. Settings apply to newly uploaded documents
+
+#### 🔄 **Changing Models & Settings**
+
+**⚠️ Important Considerations:**
+
+**Changing Embedding Models:**
+- Existing documents become incompatible
+- Options: Re-upload documents or clear collection
+- Access: Admin Panel → Settings → Global Embedding Model
+
+**Changing LLM Providers:**
+- No impact on existing documents
+- Only affects response generation
+- Access: Admin Panel → Settings → LLM Provider
+
+**Changing Chunking:**
+- Only affects newly uploaded documents
+- Existing documents keep their original chunking
+- To re-chunk: Delete and re-upload documents
 
 ## Development
 
@@ -299,7 +493,7 @@ rag_system = RAGSystem(
 4. **Response Assembly** - Combines search results into coherent answers
 5. **Real-time Delivery** - Responses streamed back via WebSocket
 
-**No External LLM Required**: The system uses retrieval-augmented generation without external APIs like OpenAI or Claude.
+**Intelligent Response Generation**: The system combines document retrieval with LLM processing for natural, contextual answers.
 
 ## Performance Tips
 

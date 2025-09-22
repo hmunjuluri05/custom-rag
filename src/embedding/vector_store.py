@@ -15,11 +15,12 @@ class VectorStore:
     def __init__(self,
                  collection_name: str = "documents",
                  persist_directory: str = "./chroma_db",
-                 embedding_model: str = "all-mpnet-base-v2"):
+                 embedding_model: str = "all-mpnet-base-v2",
+                 embedding_api_key: str = None):
 
         self.collection_name = collection_name
         self.persist_directory = persist_directory
-        self.embedding_service = EmbeddingService(embedding_model)
+        self.embedding_service = EmbeddingService(embedding_model, embedding_api_key)
 
         # Initialize ChromaDB
         self.chroma_client = chromadb.PersistentClient(
@@ -260,10 +261,10 @@ class VectorStore:
             logger.error(f"Error clearing collection: {str(e)}")
             return False
 
-    def change_embedding_model(self, new_model_name: str) -> bool:
+    def change_embedding_model(self, new_model_name: str, api_key: str = None) -> bool:
         """Change the embedding model (note: existing embeddings will become incompatible)"""
         try:
-            success = self.embedding_service.change_model(new_model_name)
+            success = self.embedding_service.change_model(new_model_name, api_key)
             if success:
                 logger.warning(f"Embedding model changed to {new_model_name}. "
                              f"Existing embeddings may be incompatible and should be regenerated.")

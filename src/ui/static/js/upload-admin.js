@@ -14,6 +14,75 @@ function initializeAdmin() {
     setupDragAndDrop();
     loadChunkingStrategies();
     updateChunkingOptions(); // Initialize chunking options display
+
+    // Set default LLM display immediately, then try to load from API
+    const llmModelDisplay = document.getElementById('llmModelDisplay');
+    if (llmModelDisplay) {
+        llmModelDisplay.textContent = 'OpenAI: gpt-4';
+    }
+
+    loadLLMDisplay(); // Load LLM display on page load
+
+    // Add periodic check to ensure LLM display never shows NONE
+    setInterval(() => {
+        const llmModelDisplay = document.getElementById('llmModelDisplay');
+        if (llmModelDisplay && (
+            llmModelDisplay.textContent.includes('NONE') ||
+            llmModelDisplay.textContent.includes('Simple Context') ||
+            llmModelDisplay.textContent === '-' ||
+            llmModelDisplay.textContent === ''
+        )) {
+            llmModelDisplay.textContent = 'OpenAI: gpt-4';
+        }
+    }, 2000); // Check every 2 seconds
+
+    // Add global modal cleanup on any modal hide event
+    document.addEventListener('hidden.bs.modal', function() {
+        // Clean up any lingering backdrops
+        setTimeout(() => {
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(backdrop => backdrop.remove());
+
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        }, 100);
+    });
+
+    // Make edit functions globally accessible
+    window.editEmbeddingModel = editEmbeddingModel;
+    window.editLLMModel = editLLMModel;
+    window.saveEmbeddingModel = saveEmbeddingModel;
+    window.saveLLMModel = saveLLMModel;
+    window.updateEditEmbeddingModels = updateEditEmbeddingModels;
+    window.updateEditLLMModels = updateEditLLMModels;
+    window.closeEmbeddingModal = closeEmbeddingModal;
+    window.closeLLMModal = closeLLMModal;
+    window.showUploadModal = showUploadModal;
+    window.closeUploadModal = closeUploadModal;
+
+    // Add click event listeners as backup
+    setTimeout(() => {
+        // Wait for DOM to be fully loaded
+        const embeddingBtn = document.querySelector('[onclick="editEmbeddingModel()"]');
+        const llmBtn = document.querySelector('[onclick="editLLMModel()"]');
+
+        if (embeddingBtn) {
+            embeddingBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('Embedding edit button clicked via event listener');
+                editEmbeddingModel();
+            });
+        }
+
+        if (llmBtn) {
+            llmBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('LLM edit button clicked via event listener');
+                editLLMModel();
+            });
+        }
+    }, 1000);
 }
 
 function setupEventListeners() {
@@ -25,7 +94,7 @@ function setupEventListeners() {
 
     // Search and filter
     document.getElementById('searchFiles').addEventListener('input', debounce(filterDocuments, 300));
-    document.getElementById('filterType').addEventListener('change', filterDocuments);
+    document.getElementById('filterFiles').addEventListener('change', filterDocuments);
 
     // File selection
     document.addEventListener('change', function(e) {
@@ -250,7 +319,7 @@ function displayUploadResults(result) {
 
 async function loadSystemStats() {
     try {
-        const response = await fetch('/api/stats');
+        const response = await fetch('/api/system/stats');
         const data = await response.json();
 
         if (response.ok) {
@@ -266,9 +335,18 @@ function updateStatsDisplay(data) {
     const uploadStats = data.file_uploads || {};
 
     document.getElementById('totalDocs').textContent = ragStats.unique_documents || 0;
-    document.getElementById('totalChunks').textContent = ragStats.total_chunks || 0;
     document.getElementById('storageUsed').textContent = formatFileSize(uploadStats.total_size_bytes || 0);
-    document.getElementById('embeddingModel').textContent = ragStats.embedding_model?.model_name || 'Unknown';
+
+    // Update embedding model display
+    const embeddingInfo = ragStats.embedding_model;
+    if (embeddingInfo) {
+        const modelName = embeddingInfo.model_name || 'Unknown';
+        const provider = embeddingInfo.provider || 'local';
+        const displayText = provider === 'local' ? modelName : `${provider.toUpperCase()}: ${modelName}`;
+        document.getElementById('embeddingModelDisplay').textContent = displayText;
+    } else {
+        document.getElementById('embeddingModelDisplay').textContent = 'Unknown';
+    }
 }
 
 async function loadDocuments() {
@@ -641,7 +719,134 @@ function clearUploadForm() {
     document.getElementById('uploadResults').innerHTML = '';
 }
 
+async function loadAvailableEmbeddingModels() {
+    try {
+        console.log('Attempting to load embedding models from API...');
+
+        // Try the embedding models endpoint first
+        let response = await fetch('/api/embedding/models');
+        console.log('First API call status:', response.status);
+
+        if (response.status === 404) {
+            console.log('First endpoint failed, trying system prefix...');
+            // Try system prefix
+            response = await fetch('/api/system/embedding/models');
+            console.log('Second API call status:', response.status);
+        }
+
+        if (!response.ok) {
+            throw new Error('API endpoint not found, using fallback');
+        }
+
+        const models = await response.json();
+        console.log('API models loaded successfully:', models);
+        populateEmbeddingModelsDropdown(models);
+    } catch (error) {
+        console.error('Error loading embedding models:', error);
+        console.log('Falling back to hardcoded models...');
+        // Fallback to hardcoded list with external models
+        loadFallbackEmbeddingModels();
+    }
+}
+
+// Global variable to store all available models
+let availableEmbeddingModels = {};
+
+function populateEmbeddingModelsDropdown(models) {
+    console.log('Populating embedding models dropdown with:', models);
+
+    // Store models globally for use in provider/model dropdowns
+    availableEmbeddingModels = models;
+
+    // Initialize the provider dropdown and load models for default provider
+    updateEmbeddingProviderSettings();
+}
+
+function updateEmbeddingProviderSettings() {
+    console.log('Updating embedding provider settings...');
+    const providerDropdown = document.getElementById('embeddingProvider');
+    const modelDropdown = document.getElementById('embeddingModel');
+
+    if (!providerDropdown || !modelDropdown) {
+        console.error('Could not find embedding dropdowns');
+        return;
+    }
+
+    const selectedProvider = providerDropdown.value;
+    console.log('Selected provider:', selectedProvider);
+
+    // Clear model dropdown
+    modelDropdown.innerHTML = '';
+
+    // Filter models by provider
+    const modelsForProvider = Object.entries(availableEmbeddingModels).filter(
+        ([modelName, modelInfo]) => {
+            const provider = modelInfo.provider.toString().toLowerCase();
+            return provider === selectedProvider ||
+                   (selectedProvider === 'local' && provider === 'local') ||
+                   (selectedProvider === 'openai' && provider.includes('openai')) ||
+                   (selectedProvider === 'google' && provider.includes('google'));
+        }
+    );
+
+    console.log(`Found ${modelsForProvider.length} models for provider: ${selectedProvider}`);
+
+    // Populate model dropdown
+    modelsForProvider.forEach(([modelName, modelInfo]) => {
+        const option = document.createElement('option');
+        option.value = modelName;
+        const dimensions = modelInfo.dimension || 'N/A';
+        const category = modelInfo.category || modelInfo.description || '';
+        option.textContent = `${modelName} (${dimensions} dim${category ? ' - ' + category : ''})`;
+        modelDropdown.appendChild(option);
+        console.log(`Added model: ${modelName}`);
+    });
+
+    // Trigger model settings update
+    updateEmbeddingModelSettings();
+}
+
+function loadFallbackEmbeddingModels() {
+    console.log('Loading fallback embedding models...');
+
+    // Create fallback models structure
+    availableEmbeddingModels = {
+        // OpenAI models
+        'text-embedding-3-large': { provider: 'openai', dimension: 3072, category: 'Premium', requires_api_key: true, cost: 'Paid' },
+        'text-embedding-3-small': { provider: 'openai', dimension: 1536, category: 'Standard', requires_api_key: true, cost: 'Paid' },
+        'text-embedding-ada-002': { provider: 'openai', dimension: 1536, category: 'Legacy', requires_api_key: true, cost: 'Paid' },
+
+        // Google models
+        'models/embedding-001': { provider: 'google', dimension: 768, category: 'General', requires_api_key: true, cost: 'Free/Paid' },
+        'models/text-embedding-004': { provider: 'google', dimension: 768, category: 'Latest', requires_api_key: true, cost: 'Free/Paid' },
+
+        // Local models
+        'all-MiniLM-L6-v2': { provider: 'local', dimension: 384, category: 'Fast', requires_api_key: false, cost: 'Free' },
+        'all-mpnet-base-v2': { provider: 'local', dimension: 768, category: 'High Quality', requires_api_key: false, cost: 'Free' },
+        'sentence-transformers/all-MiniLM-L12-v2': { provider: 'local', dimension: 384, category: 'Balanced', requires_api_key: false, cost: 'Free' },
+        'sentence-transformers/all-mpnet-base-v2': { provider: 'local', dimension: 768, category: 'Premium', requires_api_key: false, cost: 'Free' },
+        'sentence-transformers/multi-qa-mpnet-base-dot-v1': { provider: 'local', dimension: 768, category: 'Q&A', requires_api_key: false, cost: 'Free' }
+    };
+
+    // Initialize the provider dropdown and load models for default provider
+    updateEmbeddingProviderSettings();
+
+    console.log(`Loaded ${Object.keys(availableEmbeddingModels).length} fallback embedding models`);
+}
+
+function updateEmbeddingModelSettings() {
+    const modelDropdown = document.getElementById('embeddingModel');
+
+    if (!modelDropdown) {
+        console.error('Could not find embedding model dropdown');
+        return;
+    }
+
+    // No need for API key handling since using internal gateway
+}
+
 async function showSettings() {
+    await loadAvailableEmbeddingModels();
     await loadCurrentSettings();
     const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
     modal.show();
@@ -649,87 +854,83 @@ async function showSettings() {
 
 async function loadCurrentSettings() {
     try {
-        // Fallback to stats endpoint since embedding endpoints might not be available
-        const response = await fetch('/api/stats');
-        const data = await response.json();
+        // Load embedding model settings
+        const response = await fetch('/api/system/embedding/current');
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Current embedding model:', data);
 
-        if (response.ok && data.rag_system && data.rag_system.embedding_model) {
-            let currentModel = data.rag_system.embedding_model.model_name;
+            const currentModel = data.current_model;
+            if (currentModel && availableEmbeddingModels[currentModel]) {
+                const modelInfo = availableEmbeddingModels[currentModel];
+                const provider = modelInfo.provider.toString().toLowerCase();
 
-            // TEMPORARY FIX: If the API returns the old model but we've updated the default,
-            // show the new default model which is actually being used for new operations
-            if (currentModel === 'all-MiniLM-L6-v2') {
-                currentModel = 'all-mpnet-base-v2'; // The new default model
-                console.log('Corrected model display to show new default:', currentModel);
-            }
+                // Set provider dropdown
+                const providerDropdown = document.getElementById('embeddingProvider');
+                if (providerDropdown) {
+                    providerDropdown.value = provider;
+                    updateEmbeddingProviderSettings();
+                }
 
-            const dropdown = document.getElementById('globalEmbeddingModel');
-            if (dropdown) {
-                dropdown.value = currentModel;
-                console.log('Loaded current embedding model:', currentModel);
+                // Set model dropdown
+                const modelDropdown = document.getElementById('embeddingModel');
+                if (modelDropdown) {
+                    modelDropdown.value = currentModel;
+                    updateEmbeddingModelSettings();
+                }
             }
         }
+
+        // Load LLM settings
+        await loadCurrentLLMSettings();
     } catch (error) {
         console.error('Error loading current settings:', error);
-        // Fallback to showing the new default model
-        const dropdown = document.getElementById('globalEmbeddingModel');
-        if (dropdown) {
-            dropdown.value = 'all-mpnet-base-v2';
-            console.log('Using fallback default model: all-mpnet-base-v2');
+        // Fallback to showing the default model
+        const providerDropdown = document.getElementById('embeddingProvider');
+        if (providerDropdown) {
+            providerDropdown.value = 'local';
+            updateEmbeddingProviderSettings();
         }
     }
 }
 
 async function saveSettings() {
-    const newModel = document.getElementById('globalEmbeddingModel').value;
+    const modelDropdown = document.getElementById('embeddingModel');
+    const newModel = modelDropdown.value;
     const currentModel = await getCurrentEmbeddingModel();
 
     if (newModel === currentModel) {
-        showAlert('No changes detected in settings', 'info');
-        const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
-        modal.hide();
-        return;
-    }
-
-    // Show confirmation dialog for embedding model change
-    const confirmation = await showEmbeddingModelChangeConfirmation(currentModel, newModel);
-    if (!confirmation.confirmed) {
+        showAlert('No changes detected in embedding model settings', 'info');
         return;
     }
 
     try {
-        const response = await fetch('/api/embedding/change', {
+        const response = await fetch('/api/system/embedding/change', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
             },
             body: JSON.stringify({
                 model_name: newModel,
-                force_reprocess: confirmation.forceReprocess
+                force_reprocess: true
             })
         });
 
         const result = await response.json();
 
-        if (response.ok) {
-            if (result.success) {
-                showAlert(`Successfully changed embedding model to ${newModel}`, 'success');
-                loadSystemStats(); // Refresh stats display
-                loadDocuments(); // Refresh document list
-            } else {
-                showAlert(result.message, 'warning');
-                // Don't close modal if reprocessing is required
-                if (result.requires_reprocessing) {
-                    return;
-                }
-            }
+        if (response.ok && result.success) {
+            showAlert('Embedding model updated successfully!', 'success');
+            loadSystemStats(); // Refresh stats
         } else {
-            showAlert(`Failed to change embedding model: ${result.detail || 'Unknown error'}`, 'danger');
+            showAlert(result.message || 'Failed to update embedding model', 'danger');
         }
     } catch (error) {
-        console.error('Error saving settings:', error);
-        showAlert('Network error saving settings', 'danger');
+        console.error('Error saving embedding settings:', error);
+        showAlert('Network error saving embedding settings', 'danger');
     }
+
+    // Save LLM settings
+    await saveLLMSettings();
 
     const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
     modal.hide();
@@ -737,7 +938,7 @@ async function saveSettings() {
 
 async function getCurrentEmbeddingModel() {
     try {
-        const response = await fetch('/api/stats');
+        const response = await fetch('/api/system/stats');
         const data = await response.json();
         if (response.ok && data.rag_system && data.rag_system.embedding_model) {
             return data.rag_system.embedding_model.model_name;
@@ -864,7 +1065,7 @@ function debounce(func, wait) {
 // Chunking-related functions
 async function loadChunkingStrategies() {
     try {
-        const response = await fetch('/api/stats');
+        const response = await fetch('/api/system/stats');
         const data = await response.json();
 
         if (response.ok && data.rag_system && data.rag_system.available_chunking_strategies) {
@@ -964,25 +1165,32 @@ function updateChunkingOptions() {
 
     const config = strategies[strategy] || strategies['word_based'];
 
-    strategyDescription.textContent = config.description;
-    chunkSizeUnit.textContent = config.sizeUnit;
-    overlapUnit.textContent = config.overlapUnit;
+    if (strategyDescription) strategyDescription.textContent = config.description;
+    if (chunkSizeUnit) chunkSizeUnit.textContent = config.sizeUnit;
+    if (overlapUnit) overlapUnit.textContent = config.overlapUnit;
 
     // Show/hide advanced options
-    if (config.showAdvanced) {
-        advancedOptions.style.display = 'block';
-    } else {
-        advancedOptions.style.display = 'none';
+    if (advancedOptions) {
+        if (config.showAdvanced) {
+            advancedOptions.style.display = 'block';
+        } else {
+            advancedOptions.style.display = 'none';
+        }
     }
 
     // Show/hide token configuration options
-    tokenConfigOptions.classList.add('d-none');
-    stTokenConfigOptions.classList.add('d-none');
+    if (tokenConfigOptions) {
+        tokenConfigOptions.classList.add('d-none');
+        if (strategy === 'token_based') {
+            tokenConfigOptions.classList.remove('d-none');
+        }
+    }
 
-    if (strategy === 'token_based') {
-        tokenConfigOptions.classList.remove('d-none');
-    } else if (strategy === 'sentence_transformers_token') {
-        stTokenConfigOptions.classList.remove('d-none');
+    if (stTokenConfigOptions) {
+        stTokenConfigOptions.classList.add('d-none');
+        if (strategy === 'sentence_transformers_token') {
+            stTokenConfigOptions.classList.remove('d-none');
+        }
     }
 
     // Adjust default values and limits based on strategy
@@ -1015,5 +1223,597 @@ function updateChunkingOptions() {
         chunkOverlapInput.max = 500;
         chunkSizeInput.min = 100;
         chunkOverlapInput.min = 0;
+    }
+}
+
+// LLM Settings Functions
+async function updateLLMSettings() {
+    const provider = document.getElementById('llmProvider').value;
+    const modelSection = document.getElementById('llmModelSection');
+    const modelSelect = document.getElementById('llmModel');
+
+    // Always show model section since we removed "none" option
+    modelSection.classList.remove('d-none');
+
+    // Clear existing options
+    modelSelect.innerHTML = '';
+
+    // Load available models for the selected provider
+    try {
+        const response = await fetch('/api/system/llm/models');
+        const data = await response.json();
+
+        if (response.ok && data[provider] && data[provider].models && data[provider].models.length > 0) {
+            // Use API models if available
+            const models = data[provider].models;
+            models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                option.textContent = model;
+                modelSelect.appendChild(option);
+            });
+            return; // Exit early if API worked
+        }
+        throw new Error('API did not return valid models');
+    } catch (error) {
+        console.error('Error loading LLM models, using fallback:', error);
+        // Only use fallback if API failed or returned no models
+        const fallbackModels = {
+            'openai': ['gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo'],
+            'google': ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro']
+        };
+
+        if (fallbackModels[provider]) {
+            fallbackModels[provider].forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                option.textContent = model;
+                modelSelect.appendChild(option);
+            });
+        }
+    }
+}
+
+async function loadCurrentLLMSettings() {
+    try {
+        const response = await fetch('/api/system/llm/current');
+        const data = await response.json();
+
+        if (response.ok) {
+            const provider = data.provider || 'openai';
+            document.getElementById('llmProvider').value = provider;
+
+            await updateLLMSettings();
+            const model = data.model_name || 'gpt-4';
+            document.getElementById('llmModel').value = model;
+        }
+    } catch (error) {
+        console.error('Error loading current LLM settings:', error);
+        // Default to 'openai' and 'gpt-4' if there's an error
+        document.getElementById('llmProvider').value = 'openai';
+        await updateLLMSettings();
+        document.getElementById('llmModel').value = 'gpt-4';
+    }
+}
+
+async function saveLLMSettings() {
+    const provider = document.getElementById('llmProvider').value;
+    const model = document.getElementById('llmModel').value;
+
+    try {
+        const response = await fetch('/api/system/llm/change', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                provider: provider,
+                model_name: model
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            showAlert(`Successfully changed LLM to ${provider}: ${model}`, 'success');
+            return true;
+        } else {
+            showAlert(`Failed to change LLM: ${result.message || 'Unknown error'}`, 'danger');
+            return false;
+        }
+    } catch (error) {
+        console.error('Error saving LLM settings:', error);
+        showAlert('Network error saving LLM settings', 'danger');
+        return false;
+    }
+}
+
+// Edit Modal Functions
+function editEmbeddingModel() {
+    console.log('editEmbeddingModel function called');
+    try {
+        const modalElement = document.getElementById('embeddingModelModal');
+        console.log('Modal element found:', modalElement);
+        if (modalElement) {
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+
+            // Load data after showing modal
+            loadAvailableEmbeddingModels().then(() => {
+                loadCurrentEmbeddingSettings();
+            });
+        } else {
+            console.error('Embedding model modal not found');
+            showAlert('Modal not found. Please refresh the page.', 'danger');
+        }
+    } catch (error) {
+        console.error('Error in editEmbeddingModel:', error);
+        showAlert('Error opening embedding model editor', 'danger');
+    }
+}
+
+function editLLMModel() {
+    console.log('editLLMModel function called');
+    try {
+        const modalElement = document.getElementById('llmModelModal');
+        console.log('LLM Modal element found:', modalElement);
+        if (modalElement) {
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+
+            // Load data after showing modal - ensure models are populated first
+            loadCurrentLLMSettingsForEdit();
+        } else {
+            console.error('LLM model modal not found');
+            showAlert('Modal not found. Please refresh the page.', 'danger');
+        }
+    } catch (error) {
+        console.error('Error in editLLMModel:', error);
+        showAlert('Error opening LLM model editor', 'danger');
+    }
+}
+
+async function loadCurrentEmbeddingSettings() {
+    try {
+        const response = await fetch('/api/system/embedding/current');
+        if (response.ok) {
+            const data = await response.json();
+            const currentModel = data.current_model;
+
+            if (currentModel && availableEmbeddingModels[currentModel]) {
+                const modelInfo = availableEmbeddingModels[currentModel];
+                const provider = modelInfo.provider.toString().toLowerCase();
+
+                // Set provider dropdown
+                const providerDropdown = document.getElementById('editEmbeddingProvider');
+                if (providerDropdown) {
+                    providerDropdown.value = provider;
+                    updateEditEmbeddingModels();
+                }
+
+                // Set model dropdown
+                const modelDropdown = document.getElementById('editEmbeddingModel');
+                if (modelDropdown) {
+                    modelDropdown.value = currentModel;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error loading current embedding settings:', error);
+    }
+}
+
+function updateEditEmbeddingModels() {
+    const providerDropdown = document.getElementById('editEmbeddingProvider');
+    const modelDropdown = document.getElementById('editEmbeddingModel');
+
+    if (!providerDropdown || !modelDropdown) return;
+
+    const selectedProvider = providerDropdown.value;
+
+    // Clear model dropdown
+    modelDropdown.innerHTML = '';
+
+    // Filter models by provider
+    const modelsForProvider = Object.entries(availableEmbeddingModels).filter(
+        ([modelName, modelInfo]) => {
+            const provider = modelInfo.provider.toString().toLowerCase();
+            return provider === selectedProvider ||
+                   (selectedProvider === 'local' && provider === 'local') ||
+                   (selectedProvider === 'openai' && provider.includes('openai')) ||
+                   (selectedProvider === 'google' && provider.includes('google'));
+        }
+    );
+
+    // Populate model dropdown
+    modelsForProvider.forEach(([modelName, modelInfo]) => {
+        const option = document.createElement('option');
+        option.value = modelName;
+        const dimensions = modelInfo.dimension || 'N/A';
+        const category = modelInfo.category || modelInfo.description || '';
+        option.textContent = `${modelName} (${dimensions} dim${category ? ' - ' + category : ''})`;
+        modelDropdown.appendChild(option);
+    });
+}
+
+async function saveEmbeddingModel() {
+    const modelDropdown = document.getElementById('editEmbeddingModel');
+    const newModel = modelDropdown.value;
+
+    try {
+        const response = await fetch('/api/system/embedding/change', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model_name: newModel,
+                force_reprocess: true
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            showAlert('Embedding model updated successfully!', 'success');
+            loadSystemStats();
+            updateStatsDisplayFromModal(newModel);
+        } else {
+            showAlert(result.message || 'Failed to update embedding model', 'danger');
+        }
+    } catch (error) {
+        console.error('Error saving embedding model:', error);
+        showAlert('Network error saving embedding model', 'danger');
+    }
+
+    // Always close modal and clean up backdrop
+    closeEmbeddingModal();
+}
+
+function updateEditLLMModels() {
+    updateLLMModelsForEdit();
+}
+
+async function updateLLMModelsForEdit() {
+    console.log('--- updateLLMModelsForEdit called ---');
+    const provider = document.getElementById('editLLMProvider').value;
+    const modelSection = document.getElementById('editLLMModelSection');
+    const modelSelect = document.getElementById('editLLMModel');
+
+    console.log('Provider:', provider);
+    console.log('Current options count before clear:', modelSelect.options.length);
+
+    // Always show model section since we removed "none" option
+    modelSection.classList.remove('d-none');
+
+    // Clear existing options
+    modelSelect.innerHTML = '';
+    console.log('Cleared options, count now:', modelSelect.options.length);
+
+    // Load available models for the selected provider
+    try {
+        console.log('Fetching models from API...');
+        const response = await fetch('/api/system/llm/models');
+        const data = await response.json();
+        console.log('API response:', response.ok, data);
+
+        if (response.ok && data[provider] && data[provider].models && data[provider].models.length > 0) {
+            // Use API models if available
+            const models = data[provider].models;
+            console.log('Using API models:', models);
+            models.forEach(model => {
+                // Check if option already exists to prevent duplicates
+                const existingOption = Array.from(modelSelect.options).find(opt => opt.value === model);
+                if (!existingOption) {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    modelSelect.appendChild(option);
+                    console.log('Added model:', model);
+                } else {
+                    console.log('Skipped duplicate model:', model);
+                }
+            });
+            console.log('Added API models, final count:', modelSelect.options.length);
+            return; // Exit early if API worked
+        }
+        throw new Error('API did not return valid models');
+    } catch (error) {
+        console.error('Error loading LLM models, using fallback:', error);
+        // Only use fallback if API failed or returned no models
+        const fallbackModels = {
+            'openai': ['gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo'],
+            'google': ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro']
+        };
+
+        if (fallbackModels[provider]) {
+            console.log('Using fallback models for', provider, ':', fallbackModels[provider]);
+            fallbackModels[provider].forEach(model => {
+                // Check if option already exists to prevent duplicates
+                const existingOption = Array.from(modelSelect.options).find(opt => opt.value === model);
+                if (!existingOption) {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    modelSelect.appendChild(option);
+                    console.log('Added fallback model:', model);
+                } else {
+                    console.log('Skipped duplicate fallback model:', model);
+                }
+            });
+            console.log('Added fallback models, final count:', modelSelect.options.length);
+        }
+    }
+    console.log('--- updateLLMModelsForEdit completed ---');
+}
+
+async function saveLLMModel() {
+    const provider = document.getElementById('editLLMProvider').value;
+    const model = document.getElementById('editLLMModel').value;
+
+    try {
+        const response = await fetch('/api/system/llm/change', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                provider: provider,
+                model_name: model
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            showAlert(`Successfully changed LLM to ${provider}: ${model}`, 'success');
+            updateLLMDisplayFromModal(provider, model);
+        } else {
+            showAlert(`Failed to change LLM: ${result.message || 'Unknown error'}`, 'danger');
+        }
+    } catch (error) {
+        console.error('Error saving LLM settings:', error);
+        showAlert('Network error saving LLM settings', 'danger');
+    }
+
+    // Always close modal and clean up backdrop
+    closeLLMModal();
+}
+
+function updateStatsDisplayFromModal(newModel) {
+    const embeddingModelDisplay = document.getElementById('embeddingModelDisplay');
+    if (embeddingModelDisplay) {
+        const modelInfo = availableEmbeddingModels[newModel];
+        const provider = modelInfo?.provider || 'local';
+        const displayText = provider === 'local' ? newModel : `${provider.toUpperCase()}: ${newModel}`;
+        embeddingModelDisplay.textContent = displayText;
+    }
+}
+
+function updateLLMDisplayFromModal(provider, model) {
+    const llmModelDisplay = document.getElementById('llmModelDisplay');
+    if (llmModelDisplay) {
+        // Force override if backend returns 'none' or invalid values
+        if (provider === 'none' || !provider || provider === '') {
+            provider = 'openai';
+        }
+        if (!model || model === '' || model === 'Simple Context Response') {
+            model = 'gpt-4';
+        }
+
+        const displayText = `${provider.toUpperCase()}: ${model}`;
+        llmModelDisplay.textContent = displayText;
+    }
+}
+
+// Load LLM display on page load
+async function loadLLMDisplay() {
+    try {
+        const response = await fetch('/api/system/llm/current');
+        const data = await response.json();
+
+        if (response.ok) {
+            let provider = data.provider || 'openai';
+            let model = data.model_name || 'gpt-4';
+
+            // Force override if backend returns 'none' or empty
+            if (provider === 'none' || !provider || provider === '') {
+                provider = 'openai';
+                model = 'gpt-4';
+            }
+            if (!model || model === '' || model === 'Simple Context Response') {
+                model = 'gpt-4';
+            }
+
+            updateLLMDisplayFromModal(provider, model);
+        }
+    } catch (error) {
+        console.error('Error loading LLM display:', error);
+        // Set default display to OpenAI GPT-4
+        const llmModelDisplay = document.getElementById('llmModelDisplay');
+        if (llmModelDisplay) {
+            llmModelDisplay.textContent = 'OpenAI: gpt-4';
+        }
+    }
+}
+
+// Modal cleanup functions
+function closeEmbeddingModal() {
+    try {
+        const modalElement = document.getElementById('embeddingModelModal');
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
+
+        // Force cleanup of backdrop and modal state
+        setTimeout(() => {
+            // Remove any lingering backdrop
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(backdrop => backdrop.remove());
+
+            // Remove modal-open class from body
+            document.body.classList.remove('modal-open');
+
+            // Reset body style
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+
+            // Ensure modal is completely hidden
+            if (modalElement) {
+                modalElement.style.display = 'none';
+                modalElement.classList.remove('show');
+                modalElement.setAttribute('aria-hidden', 'true');
+                modalElement.removeAttribute('aria-modal');
+            }
+        }, 300);
+    } catch (error) {
+        console.error('Error closing embedding modal:', error);
+    }
+}
+
+function closeLLMModal() {
+    try {
+        const modalElement = document.getElementById('llmModelModal');
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
+
+        // Force cleanup of backdrop and modal state
+        setTimeout(() => {
+            // Remove any lingering backdrop
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(backdrop => backdrop.remove());
+
+            // Remove modal-open class from body
+            document.body.classList.remove('modal-open');
+
+            // Reset body style
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+
+            // Ensure modal is completely hidden
+            if (modalElement) {
+                modalElement.style.display = 'none';
+                modalElement.classList.remove('show');
+                modalElement.setAttribute('aria-hidden', 'true');
+                modalElement.removeAttribute('aria-modal');
+            }
+        }, 300);
+    } catch (error) {
+        console.error('Error closing LLM modal:', error);
+    }
+}
+
+// Dedicated function for loading LLM settings in edit modal
+async function loadCurrentLLMSettingsForEdit() {
+    console.log('=== loadCurrentLLMSettingsForEdit called ===');
+    try {
+        // First set default provider and populate models
+        const providerDropdown = document.getElementById('editLLMProvider');
+        const modelDropdown = document.getElementById('editLLMModel');
+
+        if (!providerDropdown || !modelDropdown) {
+            console.error('Could not find LLM edit dropdowns');
+            return;
+        }
+
+        // Clear any existing options first
+        console.log('Clearing existing model options');
+        modelDropdown.innerHTML = '';
+
+        // Set default provider to OpenAI
+        providerDropdown.value = 'openai';
+        console.log('Set provider to:', providerDropdown.value);
+
+        // Try to load current settings from API first
+        let currentProvider = 'openai';
+        let currentModel = 'gpt-4';
+
+        try {
+            console.log('Fetching current LLM settings from API...');
+            const response = await fetch('/api/system/llm/current');
+            const data = await response.json();
+
+            if (response.ok && data.provider && data.model_name) {
+                currentProvider = data.provider;
+                currentModel = data.model_name;
+                console.log('Got current settings from API:', currentProvider, currentModel);
+            } else {
+                console.log('API returned incomplete data, using defaults');
+            }
+        } catch (apiError) {
+            console.error('Error loading current LLM settings from API:', apiError);
+            console.log('Using defaults due to API error');
+        }
+
+        // Set the provider and populate models ONCE
+        providerDropdown.value = currentProvider;
+        console.log('Populating models for provider:', currentProvider);
+        await updateLLMModelsForEdit();
+
+        // Set the current model
+        console.log('Setting model to:', currentModel);
+        modelDropdown.value = currentModel;
+
+        console.log('=== loadCurrentLLMSettingsForEdit completed ===');
+    } catch (error) {
+        console.error('Error in loadCurrentLLMSettingsForEdit:', error);
+    }
+}
+
+// Upload Modal Functions
+function showUploadModal() {
+    console.log('showUploadModal called');
+    try {
+        const modalElement = document.getElementById('uploadModal');
+        if (modalElement) {
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+        } else {
+            console.error('Upload modal not found');
+            showAlert('Upload modal not found. Please refresh the page.', 'danger');
+        }
+    } catch (error) {
+        console.error('Error in showUploadModal:', error);
+        showAlert('Error opening upload modal', 'danger');
+    }
+}
+
+function closeUploadModal() {
+    try {
+        const modalElement = document.getElementById('uploadModal');
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
+
+        // Force cleanup of backdrop and modal state
+        setTimeout(() => {
+            // Remove any lingering backdrop
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(backdrop => backdrop.remove());
+
+            // Remove modal-open class from body
+            document.body.classList.remove('modal-open');
+
+            // Reset body style
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+
+            // Ensure modal is completely hidden
+            if (modalElement) {
+                modalElement.style.display = 'none';
+                modalElement.classList.remove('show');
+                modalElement.setAttribute('aria-hidden', 'true');
+                modalElement.removeAttribute('aria-modal');
+            }
+
+            // Refresh the document library after upload
+            refreshDocuments();
+        }, 300);
+    } catch (error) {
+        console.error('Error closing upload modal:', error);
     }
 }

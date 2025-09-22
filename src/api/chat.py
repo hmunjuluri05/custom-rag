@@ -9,7 +9,18 @@ class ChatService:
         self.rag_system = rag_system
 
     async def process_query(self, query: str) -> str:
-        """Process chat query using RAG system"""
+        """Process chat query using RAG system with LLM"""
+        try:
+            # Use the new LLM-powered query method
+            response = await self.rag_system.query_with_llm(query, top_k=3)
+            return response
+
+        except Exception as e:
+            logger.error(f"Error processing chat query: {str(e)}")
+            return f"Sorry, I encountered an error while processing your question: {str(e)}"
+
+    async def process_query_simple(self, query: str) -> str:
+        """Process chat query using simple RAG without LLM (legacy method)"""
         try:
             results = await self.rag_system.query(query, top_k=3)
 

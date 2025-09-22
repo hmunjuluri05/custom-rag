@@ -5,6 +5,7 @@ from datetime import datetime
 from .embedding.vector_store import VectorStore
 from .embedding.chunking import ChunkerFactory, ChunkingConfig, ChunkingStrategy
 from .upload.document_processor import DocumentProcessor
+from .llm.models import LLMService, LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,11 @@ class RAGSystem:
     def __init__(self,
                  collection_name: str = "documents",
                  embedding_model: str = "all-mpnet-base-v2",
-                 chunking_config: Optional[ChunkingConfig] = None):
+                 embedding_api_key: str = None,
+                 chunking_config: Optional[ChunkingConfig] = None,
+                 llm_provider: LLMProvider = LLMProvider.NONE,
+                 llm_model: str = None,
+                 llm_api_key: str = None):
 
         # Initialize chunking configuration
         self.chunking_config = chunking_config or ChunkingConfig()
@@ -23,10 +28,20 @@ class RAGSystem:
         self.document_processor = DocumentProcessor()
         self.vector_store = VectorStore(
             collection_name=collection_name,
-            embedding_model=embedding_model
+            embedding_model=embedding_model,
+            embedding_api_key=embedding_api_key
         )
 
-        logger.info(f"RAG system initialized with model: {embedding_model}, chunking: {self.chunking_config.strategy.value}")
+        # Initialize LLM service
+        self.llm_service = LLMService(
+            provider=llm_provider,
+            model_name=llm_model,
+            api_key=llm_api_key
+        )
+
+        logger.info(f"RAG system initialized with embedding model: {embedding_model}, "
+                   f"chunking: {self.chunking_config.strategy.value}, "
+                   f"LLM: {llm_provider.value}")
 
     def _chunk_text(self, text: str, metadata: Dict[str, Any], custom_config: Optional[ChunkingConfig] = None) -> List[Dict[str, Any]]:
         """Split text into chunks using configured chunking strategy"""
@@ -110,6 +125,32 @@ class RAGSystem:
             logger.error(f"Error querying RAG system: {str(e)}")
             raise Exception(f"Query failed: {str(e)}")
 
+    async def query_with_llm(self, query_text: str, top_k: int = 5, document_filter: Optional[str] = None) -> str:
+        """Query the RAG system and generate response using LLM"""
+        try:
+            # Get relevant documents
+            results = await self.query(query_text, top_k, document_filter)
+
+            if not results:
+                return await self.llm_service.generate_response("", query_text)
+
+            # Combine context from retrieved documents
+            context_parts = []
+            for result in results:
+                context_parts.append(f"From {result['filename']}: {result['content']}")
+
+            context = "\n\n".join(context_parts)
+
+            # Generate response using LLM
+            response = await self.llm_service.generate_response(context, query_text)
+
+            logger.info(f"Generated LLM response for query: '{query_text}'")
+            return response
+
+        except Exception as e:
+            logger.error(f"Error generating LLM response: {str(e)}")
+            return f"Error generating response: {str(e)}"
+
     async def list_documents(self) -> List[Dict[str, Any]]:
         """List all documents in the RAG system"""
         try:
@@ -192,10 +233,36 @@ class RAGSystem:
             # Get actual current model info from the vector store (not cached)
             current_model_info = self.vector_store.get_model_info()
 
+            # Handle serialization of enum values
+            def serialize_model_info(info):
+                if isinstance(info, dict):
+                    serialized = {}
+                    for key, value in info.items():
+                        if hasattr(value, 'value'):  # This is an enum
+                            serialized[key] = value.value
+                        elif isinstance(value, dict):
+                            serialized[key] = serialize_model_info(value)  # Recursive for nested dicts
+                        elif isinstance(value, list):
+                            serialized[key] = [serialize_model_info(item) for item in value]  # Handle lists
+                        else:
+                            serialized[key] = value
+                    return serialized
+                elif isinstance(info, list):
+                    return [serialize_model_info(item) for item in info]
+                elif hasattr(info, 'value'):  # This is an enum
+                    return info.value
+                return info
+
+            # Serialize model info to handle enum values
+            serializable_model_info = serialize_model_info(current_model_info)
+
+            # Also serialize chunking strategies
+            chunking_strategies = serialize_model_info(self.get_chunking_strategies())
+
             return {
                 "total_chunks": collection_info.get("document_count", 0),
                 "unique_documents": collection_info.get("unique_documents", 0),
-                "embedding_model": current_model_info,  # Use actual current model info
+                "embedding_model": serializable_model_info,  # Use serialized model info
                 "chunking_config": {
                     "strategy": self.chunking_config.strategy.value,
                     "chunk_size": self.chunking_config.chunk_size,
@@ -205,7 +272,7 @@ class RAGSystem:
                 },
                 "collection_name": collection_info.get("collection_name", ""),
                 "supported_formats": list(self.document_processor.supported_formats.keys()),
-                "available_chunking_strategies": self.get_chunking_strategies()
+                "available_chunking_strategies": chunking_strategies
             }
 
         except Exception as e:
@@ -246,7 +313,7 @@ class RAGSystem:
         """Get information about the current embedding model"""
         return self.vector_store.get_model_info()
 
-    async def change_embedding_model(self, new_model_name: str, force_reprocess: bool = False) -> Dict[str, Any]:
+    async def change_embedding_model(self, new_model_name: str, embedding_api_key: str = None, force_reprocess: bool = False) -> Dict[str, Any]:
         """Change the embedding model (requires reprocessing documents)"""
         try:
             # Get current stats before change
@@ -277,7 +344,7 @@ class RAGSystem:
                 }
 
             # Change the model
-            success = self.vector_store.change_embedding_model(new_model_name)
+            success = self.vector_store.change_embedding_model(new_model_name, embedding_api_key)
 
             if not success:
                 return {
@@ -322,10 +389,10 @@ class RAGSystem:
                 "current_model": self.get_current_embedding_model()
             }
 
-    def change_embedding_model_sync(self, new_model_name: str) -> bool:
+    def change_embedding_model_sync(self, new_model_name: str, embedding_api_key: str = None) -> bool:
         """Synchronous version - Change the embedding model (requires reprocessing documents)"""
         try:
-            success = self.vector_store.change_embedding_model(new_model_name)
+            success = self.vector_store.change_embedding_model(new_model_name, embedding_api_key)
             if success:
                 logger.warning(f"Embedding model changed to {new_model_name}. "
                              f"Existing documents should be reprocessed for optimal results.")
@@ -334,3 +401,23 @@ class RAGSystem:
         except Exception as e:
             logger.error(f"Error changing embedding model: {str(e)}")
             return False
+
+    def get_llm_info(self) -> Dict[str, Any]:
+        """Get information about the current LLM"""
+        return self.llm_service.get_model_info()
+
+    def change_llm(self, provider: LLMProvider, model_name: str = None, api_key: str = None) -> bool:
+        """Change the LLM provider and model"""
+        try:
+            success = self.llm_service.change_model(provider, model_name, api_key)
+            if success:
+                logger.info(f"LLM changed to {provider.value}: {model_name}")
+            return success
+        except Exception as e:
+            logger.error(f"Error changing LLM: {str(e)}")
+            return False
+
+    def get_available_llms(self) -> Dict[str, Dict[str, Any]]:
+        """Get available LLM models"""
+        from .llm.models import LLMFactory
+        return LLMFactory.get_available_models()
