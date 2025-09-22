@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} - Knowledge Base Search</title>
+    <link href="/static/css/style.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .chat-container {
+            height: 60vh;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            max-width: 80%;
+        }
+
+        .message.user {
+            background-color: #007bff;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.assistant {
+            background-color: white;
+            border: 1px solid #dee2e6;
+            margin-right: auto;
+        }
+
+        .message-meta {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            margin-top: 0.25rem;
+        }
+
+        .typing-indicator {
+            display: none;
+            padding: 0.75rem;
+            background-color: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            margin-right: auto;
+            max-width: 80%;
+        }
+
+        .typing-dots {
+            display: inline-block;
+        }
+
+        .typing-dots span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #007bff;
+            margin: 0 2px;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dots span:nth-child(1) { animation-delay: 0.0s; }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-10px); opacity: 1; }
+        }
+
+        .chat-input-container {
+            margin-top: 1rem;
+        }
+
+        .source-refs {
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .source-ref {
+            display: inline-block;
+            background-color: #e9ecef;
+            padding: 0.25rem 0.5rem;
+            margin: 0.25rem 0.25rem 0 0;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="bi bi-search"></i> Knowledge Base Search</a>
+            <div class="navbar-nav">
+                <a class="nav-link active" href="/"><i class="bi bi-house"></i> Home</a>
+                <a class="nav-link" href="/upload"><i class="bi bi-gear"></i> Admin Panel</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Welcome Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="jumbotron bg-light p-4 rounded">
+                    <h1 class="display-5">🔍 Welcome to Knowledge Base Search</h1>
+                    <p class="lead">Ask questions about your documents and get precise answers instantly.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8">
+                <div class="chat-container" id="chatContainer">
+                    <div class="message assistant">
+                        <div>👋 Hello! I'm ready to help you find information in your documents. What would you like to know?</div>
+                        <div class="message-meta">Assistant</div>
+                    </div>
+
+                    <div class="typing-indicator" id="typingIndicator">
+                        <div class="typing-dots">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                        <div style="margin-left: 10px; display: inline;">Assistant is typing...</div>
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="messageInput"
+                               placeholder="Ask a question about your documents..."
+                               onkeypress="handleKeyPress(event)">
+                        <button class="btn btn-primary" onclick="sendMessage()" id="sendButton">
+                            <i class="bi bi-send"></i> Send
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <small class="text-muted">
+                        💡 Tip: Be specific in your questions for better results. You can ask for summaries,
+                        find specific information, or compare data across your documents.
+                    </small>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="bi bi-lightning-charge"></i> Quick Actions</h6>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-outline-primary btn-sm mb-2 w-100"
+                                onclick="sendPredefinedMessage('Summarize the main points from all documents')">
+                            📄 Summarize Documents
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm mb-2 w-100"
+                                onclick="sendPredefinedMessage('What are the key findings?')">
+                            🔍 Key Findings
+                        </button>
+                        <hr>
+                        <button class="btn btn-outline-secondary btn-sm w-100"
+                                onclick="clearChat()">
+                            🗑️ Clear Chat
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6>Connection Status</h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="connectionStatus" class="text-warning">
+                            <i class="bi bi-wifi-off"></i> Connecting...
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6>Chat Statistics</h6>
+                    </div>
+                    <div class="card-body">
+                        <small>
+                            <div>Messages sent: <span id="messageCount">0</span></div>
+                            <div>Session started: <span id="sessionStart"></span></div>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/chat.js"></script>
+</body>
+</html>

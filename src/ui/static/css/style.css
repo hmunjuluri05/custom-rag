@@ -1,0 +1,340 @@
+/* Custom styles for RAG System */
+
+:root {
+    --primary-color: #0d6efd;
+    --secondary-color: #6c757d;
+    --success-color: #198754;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+    --info-color: #0dcaf0;
+    --light-color: #f8f9fa;
+    --dark-color: #212529;
+}
+
+/* Global styles */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.6;
+    color: var(--dark-color);
+}
+
+/* Navigation */
+.navbar-brand {
+    font-weight: 600;
+    font-size: 1.5rem;
+}
+
+.nav-link {
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+.nav-link:hover {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Cards */
+.card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+
+.card-header {
+    background-color: var(--light-color);
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+/* Buttons */
+.btn {
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-color), #0056b3);
+    border: none;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #0056b3, var(--primary-color));
+}
+
+/* Form elements */
+.form-control, .form-select {
+    border-radius: 8px;
+    border: 1px solid #ced4da;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.1);
+}
+
+/* File upload */
+.form-control[type="file"] {
+    padding: 12px;
+}
+
+.form-control[type="file"]:hover {
+    border-color: var(--primary-color);
+}
+
+/* Drag and drop styles */
+.border-primary {
+    border-color: var(--primary-color) !important;
+    border-width: 2px !important;
+    border-style: dashed !important;
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Upload results */
+.list-group-item {
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.list-group-item:last-child {
+    margin-bottom: 0;
+}
+
+/* Alerts */
+.alert {
+    border: none;
+    border-radius: 10px;
+    font-weight: 500;
+}
+
+/* Chat styles */
+.chat-container {
+    border-radius: 12px;
+    background: linear-gradient(to bottom, #f8f9fa, #ffffff);
+}
+
+.message {
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message.user {
+    background: linear-gradient(135deg, var(--primary-color), #0056b3);
+}
+
+.message.assistant {
+    background: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Typing indicator animation */
+.typing-dots span {
+    animation: typing 1.4s infinite ease-in-out;
+}
+
+/* Table styles */
+.table {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.table th {
+    background-color: var(--light-color);
+    border-top: none;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+
+.table td {
+    vertical-align: middle;
+    padding: 1rem 0.75rem;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Document management */
+.document-filename {
+    font-weight: 500;
+}
+
+/* Badges */
+.badge {
+    font-weight: 500;
+    border-radius: 6px;
+    padding: 0.4em 0.8em;
+}
+
+/* Quick actions */
+.btn-group-sm .btn {
+    border-radius: 6px;
+    margin: 0 2px;
+}
+
+/* Status indicators */
+.text-success {
+    color: var(--success-color) !important;
+}
+
+.text-danger {
+    color: var(--danger-color) !important;
+}
+
+.text-warning {
+    color: var(--warning-color) !important;
+}
+
+/* Loading states */
+.spinner-border {
+    animation: spinner-border 0.75s linear infinite;
+}
+
+@keyframes spinner-border {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        padding: 0 15px;
+    }
+
+    .card {
+        margin-bottom: 1rem;
+    }
+
+    .chat-container {
+        height: 50vh;
+    }
+
+    .message {
+        max-width: 95%;
+    }
+
+    .btn-group-sm .btn {
+        margin: 2px 0;
+    }
+}
+
+/* Custom scrollbar */
+.chat-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.chat-container::-webkit-scrollbar-thumb {
+    background: var(--secondary-color);
+    border-radius: 3px;
+}
+
+.chat-container::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
+}
+
+/* Accordion styles */
+.accordion-button {
+    font-weight: 500;
+    border-radius: 8px !important;
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: rgba(13, 110, 253, 0.1);
+    color: var(--primary-color);
+}
+
+.accordion-body {
+    border-radius: 0 0 8px 8px;
+}
+
+/* Source references */
+.source-refs {
+    background-color: rgba(13, 110, 253, 0.05);
+    border-radius: 8px;
+    padding: 8px;
+}
+
+.source-ref {
+    background-color: rgba(13, 110, 253, 0.1);
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.source-ref:hover {
+    background-color: rgba(13, 110, 253, 0.2);
+}
+
+/* Animation utilities */
+.fade-in {
+    animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.slide-up {
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Focus styles for accessibility */
+.btn:focus,
+.form-control:focus,
+.form-select:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* Print styles */
+@media print {
+    .navbar,
+    .btn,
+    .card-header {
+        display: none !important;
+    }
+
+    .card {
+        box-shadow: none;
+        border: 1px solid #ddd;
+    }
+}

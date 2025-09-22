@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} - Knowledge Base Admin</title>
+    <link href="/static/css/style.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        .admin-header {
+            background: linear-gradient(135deg, #6c757d, #495057);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        .stats-card {
+            border-left: 4px solid #007bff;
+        }
+        .file-actions {
+            white-space: nowrap;
+        }
+        .bulk-actions {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            background-color: #f8f9fa;
+        }
+        .drop-zone.dragover {
+            border-color: #007bff;
+            background-color: rgba(0, 123, 255, 0.1);
+        }
+        .file-preview {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="bi bi-search"></i> Knowledge Base Search</a>
+            <div class="navbar-nav">
+                <a class="nav-link" href="/"><i class="bi bi-house"></i> Home</a>
+                <a class="nav-link active" href="/upload"><i class="bi bi-gear"></i> Admin Panel</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="admin-header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1><i class="bi bi-gear-fill me-2"></i>Document Management System</h1>
+                    <p class="lead mb-0">Upload, manage, and configure documents for your knowledge base</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="d-flex justify-content-end gap-2">
+                        <button class="btn btn-outline-light" onclick="refreshStats()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                        <button class="btn btn-warning" onclick="showSettings()">
+                            <i class="bi bi-gear"></i> Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- System Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title text-muted">Total Documents</h6>
+                                <h3 class="mb-0" id="totalDocs">-</h3>
+                            </div>
+                            <div class="text-primary">
+                                <i class="bi bi-files" style="font-size: 2rem;"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title text-muted">Total Chunks</h6>
+                                <h3 class="mb-0" id="totalChunks">-</h3>
+                            </div>
+                            <div class="text-success">
+                                <i class="bi bi-puzzle" style="font-size: 2rem;"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title text-muted">Storage Used</h6>
+                                <h3 class="mb-0" id="storageUsed">-</h3>
+                            </div>
+                            <div class="text-warning">
+                                <i class="bi bi-hdd" style="font-size: 2rem;"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title text-muted">Global Embedding Model</h6>
+                                <h6 class="mb-0" id="embeddingModel">-</h6>
+                                <small class="text-muted">Used for all documents</small>
+                            </div>
+                            <div class="text-info">
+                                <i class="bi bi-cpu" style="font-size: 2rem;"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- File Upload Section -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5><i class="bi bi-cloud-upload"></i> Upload New Documents</h5>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="clearUploadForm()">
+                            <i class="bi bi-x-circle"></i> Clear
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <div class="drop-zone" id="dropZone">
+                                <i class="bi bi-cloud-upload display-4 text-muted mb-3"></i>
+                                <h5>Drag & Drop Files Here</h5>
+                                <p class="text-muted">or click to browse</p>
+                                <input type="file" class="form-control d-none" id="files" name="files" multiple
+                                       accept=".pdf,.docx,.xlsx,.xls,.txt">
+                                <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('files').click()">
+                                    <i class="bi bi-folder2-open"></i> Choose Files
+                                </button>
+                            </div>
+
+                                <div class="mt-3">
+                                    <h6><i class="bi bi-scissors"></i> Chunking Configuration</h6>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Chunking Strategy</label>
+                                            <select class="form-select" id="chunkingStrategy" onchange="updateChunkingOptions()">
+                                                <optgroup label="LangChain Splitters (Recommended)">
+                                                    <option value="recursive_character">Recursive Character (Best)</option>
+                                                    <option value="character">Character-based</option>
+                                                    <option value="token_based">Token-based (GPT Models)</option>
+                                                    <option value="sentence_transformers_token">SentenceTransformers Token</option>
+                                                </optgroup>
+                                                <optgroup label="Custom Splitters">
+                                                    <option value="word_based">Word-based</option>
+                                                    <option value="sentence_based">Sentence-based</option>
+                                                    <option value="paragraph_based">Paragraph-based</option>
+                                                    <option value="fixed_size">Fixed Character Size</option>
+                                                    <option value="semantic_based">Semantic-based</option>
+                                                </optgroup>
+                                            </select>
+                                            <small class="form-text text-muted" id="strategyDescription">
+                                                Split text based on word count with configurable overlap
+                                            </small>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Chunk Size</label>
+                                            <input type="number" class="form-control" id="chunkSize" value="1000" min="100" max="3000">
+                                            <small class="form-text text-muted" id="chunkSizeUnit">words</small>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Overlap</label>
+                                            <input type="number" class="form-control" id="chunkOverlap" value="200" min="0" max="500">
+                                            <small class="form-text text-muted" id="overlapUnit">words</small>
+                                        </div>
+                                    </div>
+
+                                    <div class="row mt-2" id="advancedChunkingOptions">
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="preserveSentences" checked>
+                                                <label class="form-check-label" for="preserveSentences">
+                                                    Preserve sentence boundaries
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="preserveParagraphs">
+                                                <label class="form-check-label" for="preserveParagraphs">
+                                                    Preserve paragraph boundaries
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Token-based Configuration -->
+                                    <div class="row mt-2 d-none" id="tokenConfigOptions">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Model for Tokenization</label>
+                                            <select class="form-select form-select-sm" id="tokenModel">
+                                                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                                <option value="gpt-4">GPT-4</option>
+                                                <option value="text-davinci-003">Text Davinci 003</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Encoding</label>
+                                            <select class="form-select form-select-sm" id="tokenEncoding">
+                                                <option value="">Auto (recommended)</option>
+                                                <option value="cl100k_base">cl100k_base</option>
+                                                <option value="p50k_base">p50k_base</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- SentenceTransformers Token Configuration -->
+                                    <div class="row mt-2 d-none" id="stTokenConfigOptions">
+                                        <div class="col-md-12">
+                                            <label class="form-label">SentenceTransformers Model</label>
+                                            <select class="form-select form-select-sm" id="stTokenModel">
+                                                <option value="all-MiniLM-L6-v2">all-MiniLM-L6-v2</option>
+                                                <option value="all-mpnet-base-v2">all-mpnet-base-v2</option>
+                                                <option value="paraphrase-multilingual-MiniLM-L12-v2">Multilingual MiniLM</option>
+                                            </select>
+                                            <small class="form-text text-muted">Model used for token counting</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="file-preview mt-3" id="filePreview"></div>
+
+                            <div class="mt-3 d-grid gap-2">
+                                <button type="submit" class="btn btn-primary" id="uploadBtn" disabled>
+                                    <span class="spinner-border spinner-border-sm me-2 d-none" id="uploadSpinner"></span>
+                                    <i class="bi bi-upload"></i> Process & Upload Files
+                                </button>
+                            </div>
+                        </form>
+
+                        <div id="uploadResults" class="mt-3"></div>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6><i class="bi bi-info-circle"></i> Supported Formats</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-6">
+                                <small><i class="bi bi-file-earmark-pdf text-danger"></i> PDF Documents</small><br>
+                                <small><i class="bi bi-file-earmark-word text-primary"></i> Word Documents</small>
+                            </div>
+                            <div class="col-6">
+                                <small><i class="bi bi-file-earmark-excel text-success"></i> Excel Spreadsheets</small><br>
+                                <small><i class="bi bi-file-earmark-text text-secondary"></i> Plain Text</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Management Section -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5><i class="bi bi-files"></i> Document Library</h5>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="refreshDocuments()">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="showBulkDelete()" id="bulkDeleteBtn" disabled>
+                                <i class="bi bi-trash"></i> Delete Selected
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Search and Filter -->
+                        <div class="row mb-3">
+                            <div class="col-8">
+                                <input type="text" class="form-control form-control-sm" id="searchFiles"
+                                       placeholder="Search files...">
+                            </div>
+                            <div class="col-4">
+                                <select class="form-select form-select-sm" id="filterType">
+                                    <option value="">All Types</option>
+                                    <option value=".pdf">PDF</option>
+                                    <option value=".docx">DOCX</option>
+                                    <option value=".xlsx">XLSX</option>
+                                    <option value=".txt">TXT</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Bulk Actions -->
+                        <div class="bulk-actions d-none" id="bulkActions">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span><span id="selectedCount">0</span> files selected</span>
+                                <div>
+                                    <button class="btn btn-sm btn-warning" onclick="reprocessSelected()">
+                                        <i class="bi bi-arrow-repeat"></i> Reprocess
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteSelected()">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Documents Table -->
+                        <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th width="40">
+                                            <input type="checkbox" class="form-check-input" id="selectAll" onchange="toggleSelectAll()">
+                                        </th>
+                                        <th>File</th>
+                                        <th>Type</th>
+                                        <th>Size</th>
+                                        <th>Chunks</th>
+                                        <th width="100">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="documentsTableBody">
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-3">
+                                            <div class="spinner-border spinner-border-sm me-2"></div>
+                                            Loading documents...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Document Details Modal -->
+    <div class="modal fade" id="documentModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Document Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="documentModalBody">
+                    <!-- Content will be loaded dynamically -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-warning" onclick="reprocessDocument()">
+                        <i class="bi bi-arrow-repeat"></i> Reprocess
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal fade" id="settingsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">System Settings</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="settingsForm">
+                        <div class="mb-3">
+                            <label class="form-label">Global Embedding Model</label>
+                            <select class="form-select" id="globalEmbeddingModel">
+                                <optgroup label="Recommended Models">
+                                    <option value="all-MiniLM-L6-v2">General Purpose - Fast (384 dim, 80MB)</option>
+                                    <option value="all-mpnet-base-v2" selected>High Quality - Accurate (768 dim, 420MB)</option>
+                                    <option value="sentence-transformers/all-MiniLM-L12-v2">Balanced - Speed + Accuracy (384 dim, 130MB)</option>
+                                </optgroup>
+                                <optgroup label="Specialized Models">
+                                    <option value="sentence-transformers/multi-qa-mpnet-base-dot-v1">Q&A Optimized (768 dim, 420MB)</option>
+                                    <option value="sentence-transformers/multi-qa-MiniLM-L6-cos-v1">Q&A Fast (384 dim, 80MB)</option>
+                                    <option value="sentence-transformers/msmarco-distilbert-base-v4">Search Optimized (768 dim, 250MB)</option>
+                                </optgroup>
+                                <optgroup label="Multilingual Models">
+                                    <option value="paraphrase-multilingual-MiniLM-L12-v2">Multilingual (384 dim, 420MB)</option>
+                                    <option value="sentence-transformers/paraphrase-multilingual-mpnet-base-v2">Multilingual Premium (768 dim, 970MB)</option>
+                                </optgroup>
+                                <optgroup label="High Performance">
+                                    <option value="sentence-transformers/all-mpnet-base-v2">Premium Quality (768 dim, 420MB)</option>
+                                    <option value="sentence-transformers/all-roberta-large-v1">Maximum Accuracy (1024 dim, 1.3GB)</option>
+                                </optgroup>
+                            </select>
+                            <div class="form-text">
+                                <strong>⚠️ Warning:</strong> Changing the embedding model will require re-processing all existing documents
+                                to maintain search compatibility.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <h6>Default Chunking Settings</h6>
+                            <div class="row">
+                                <div class="col-6">
+                                    <label class="form-label">Default Chunk Size</label>
+                                    <input type="number" class="form-control" id="defaultChunkSize" value="1000">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Chunk Overlap</label>
+                                    <input type="number" class="form-control" id="defaultChunkOverlap" value="200">
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/upload-admin.js"></script>
+</body>
+</html>
