@@ -6,6 +6,7 @@ from .embedding.vector_store import VectorStore
 from .embedding.chunking import ChunkerFactory, ChunkingConfig, ChunkingStrategy
 from .upload.document_processor import DocumentProcessor
 from .llm.models import LLMService, LLMProvider
+from .config import get_default_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +18,10 @@ class RAGSystem:
                  embedding_model: str = "all-mpnet-base-v2",
                  embedding_api_key: str = None,
                  chunking_config: Optional[ChunkingConfig] = None,
-                 llm_provider: LLMProvider = LLMProvider.NONE,
+                 llm_provider: LLMProvider = None,
                  llm_model: str = None,
-                 llm_api_key: str = None):
+                 llm_api_key: str = None,
+                 llm_base_url: str = None):
 
         # Initialize chunking configuration
         self.chunking_config = chunking_config or ChunkingConfig()
@@ -32,11 +34,19 @@ class RAGSystem:
             embedding_api_key=embedding_api_key
         )
 
-        # Initialize LLM service
+        # Initialize LLM service with default configuration if not provided
+        if llm_provider is None:
+            default_provider, default_model, default_api_key, default_base_url = get_default_llm_config()
+            llm_provider = default_provider
+            llm_model = llm_model or default_model
+            llm_api_key = llm_api_key or default_api_key
+            llm_base_url = llm_base_url or default_base_url
+
         self.llm_service = LLMService(
             provider=llm_provider,
             model_name=llm_model,
-            api_key=llm_api_key
+            api_key=llm_api_key,
+            base_url=llm_base_url
         )
 
         logger.info(f"RAG system initialized with embedding model: {embedding_model}, "
@@ -64,6 +74,11 @@ class RAGSystem:
                 "document_type": filename.split('.')[-1].lower() if '.' in filename else "unknown"
             }
 
+            # Store original content in the first chunk's metadata for document viewing
+            original_content_metadata = base_metadata.copy()
+            original_content_metadata["original_content"] = text_content
+            original_content_metadata["is_original_content"] = True
+
             # Split text into chunks using custom config if provided
             chunks = self._chunk_text(text_content, base_metadata, custom_chunking_config)
 
@@ -74,6 +89,11 @@ class RAGSystem:
             texts = [chunk["text"] for chunk in chunks]
             metadatas = [chunk["metadata"] for chunk in chunks]
             chunk_ids = [f"{document_id}_chunk_{i}" for i in range(len(chunks))]
+
+            # Also store original content for document viewing (non-searchable)
+            texts.append("ORIGINAL_CONTENT_PLACEHOLDER")  # Won't be searched
+            metadatas.append(original_content_metadata)
+            chunk_ids.append(f"{document_id}_original")
 
             # Add to vector store
             await self.vector_store.add_documents(texts, metadatas, chunk_ids)
@@ -125,14 +145,19 @@ class RAGSystem:
             logger.error(f"Error querying RAG system: {str(e)}")
             raise Exception(f"Query failed: {str(e)}")
 
-    async def query_with_llm(self, query_text: str, top_k: int = 5, document_filter: Optional[str] = None) -> str:
-        """Query the RAG system and generate response using LLM"""
+    async def query_with_llm(self, query_text: str, top_k: int = 5, document_filter: Optional[str] = None) -> Dict[str, Any]:
+        """Query the RAG system and generate response using LLM with source references"""
         try:
             # Get relevant documents
             results = await self.query(query_text, top_k, document_filter)
 
             if not results:
-                return await self.llm_service.generate_response("", query_text)
+                response = await self.llm_service.generate_response("", query_text)
+                return {
+                    "response": response,
+                    "sources": [],
+                    "query": query_text
+                }
 
             # Combine context from retrieved documents
             context_parts = []
@@ -144,12 +169,43 @@ class RAGSystem:
             # Generate response using LLM
             response = await self.llm_service.generate_response(context, query_text)
 
+            # Prepare source information - group by document and show best relevance score
+            document_sources = {}
+            for result in results:
+                doc_id = result["document_id"]
+                relevance_score = result.get("relevance_score", 0)
+
+                if doc_id not in document_sources or relevance_score > document_sources[doc_id]["relevance_score"]:
+                    document_sources[doc_id] = {
+                        "document_id": doc_id,
+                        "filename": result["filename"],
+                        "relevance_score": relevance_score,
+                        "source_info": result.get("source_info", {}),
+                        "content_preview": result["content"][:200] + "..." if len(result["content"]) > 200 else result["content"],
+                        "chunk_count": 1
+                    }
+                else:
+                    # Increment chunk count for this document
+                    document_sources[doc_id]["chunk_count"] += 1
+
+            # Convert to list and sort by relevance score
+            sources = list(document_sources.values())
+            sources.sort(key=lambda x: x["relevance_score"], reverse=True)
+
             logger.info(f"Generated LLM response for query: '{query_text}'")
-            return response
+            return {
+                "response": response,
+                "sources": sources,
+                "query": query_text
+            }
 
         except Exception as e:
             logger.error(f"Error generating LLM response: {str(e)}")
-            return f"Error generating response: {str(e)}"
+            return {
+                "response": f"Error generating response: {str(e)}",
+                "sources": [],
+                "query": query_text
+            }
 
     async def list_documents(self) -> List[Dict[str, Any]]:
         """List all documents in the RAG system"""
@@ -165,13 +221,27 @@ class RAGSystem:
                 doc_id = metadata.get("document_id")
 
                 if doc_id and doc_id not in documents:
+                    file_size = metadata.get("file_size", 0)
+
+                    # For older documents without file_size, try to get it from file path
+                    if file_size == 0:
+                        file_path = metadata.get("file_path", "")
+                        if file_path:
+                            try:
+                                import os
+                                if os.path.exists(file_path):
+                                    file_size = os.path.getsize(file_path)
+                            except Exception:
+                                pass  # If file doesn't exist or can't read, keep file_size as 0
+
                     documents[doc_id] = {
                         "document_id": doc_id,
                         "filename": metadata.get("filename", "Unknown"),
                         "file_path": metadata.get("file_path", ""),
                         "document_type": metadata.get("document_type", ""),
                         "timestamp": metadata.get("timestamp", ""),
-                        "total_chunks": metadata.get("total_chunks", 0)
+                        "total_chunks": metadata.get("total_chunks", 0),
+                        "file_size": file_size
                     }
 
             return list(documents.values())
@@ -181,15 +251,45 @@ class RAGSystem:
             raise Exception(f"Failed to list documents: {str(e)}")
 
     async def delete_document(self, document_id: str) -> bool:
-        """Delete a document from the RAG system"""
+        """Delete a document from the RAG system and file storage"""
         try:
-            # Delete from vector store using filter
-            success = await self.vector_store.delete_by_filter({"document_id": document_id})
+            # First, get the document metadata to find the file path
+            documents = await self.list_documents()
+            file_path = None
+            logger.info(f"Looking for document {document_id} among {len(documents)} documents")
+
+            for doc in documents:
+                if doc["document_id"] == document_id:
+                    file_path = doc.get("file_path")
+                    logger.info(f"Found document {document_id} with file_path: {file_path}")
+                    break
+
+            if not file_path:
+                logger.warning(f"No file_path found for document {document_id}")
+
+            # Delete from vector store using correct ChromaDB filter syntax
+            success = await self.vector_store.delete_by_filter({"document_id": {"$eq": document_id}})
+
+            # If vector deletion was successful and we have a file path, delete the file
+            if success and file_path:
+                try:
+                    import os
+                    logger.info(f"Attempting to delete file: {file_path}")
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        logger.info(f"Successfully deleted file: {file_path}")
+                    else:
+                        logger.warning(f"File not found for deletion: {file_path}")
+                except Exception as file_error:
+                    logger.error(f"Error deleting file {file_path}: {str(file_error)}")
+                    # Continue execution - vector deletion was successful
+            elif success and not file_path:
+                logger.warning(f"Vector deletion successful but no file_path to delete for document {document_id}")
 
             if success:
-                logger.info(f"Deleted document {document_id}")
+                logger.info(f"Deleted document {document_id} from vector store and file system")
             else:
-                logger.warning(f"Document {document_id} not found")
+                logger.warning(f"Document {document_id} not found in vector store")
 
             return success
 
@@ -197,12 +297,72 @@ class RAGSystem:
             logger.error(f"Error deleting document {document_id}: {str(e)}")
             raise Exception(f"Failed to delete document: {str(e)}")
 
+    async def clear_all_documents(self) -> Dict[str, Any]:
+        """Clear all documents from both vector store and file system"""
+        try:
+            # Get all documents first to know which files to delete
+            documents = await self.list_documents()
+            file_paths = [doc.get("file_path") for doc in documents if doc.get("file_path")]
+
+            # Clear vector store
+            success = await self.vector_store.clear_collection()
+
+            # Delete all files
+            deleted_files = []
+            failed_files = []
+
+            if success and file_paths:
+                import os
+                for file_path in file_paths:
+                    try:
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                            deleted_files.append(file_path)
+                            logger.info(f"Deleted file: {file_path}")
+                        else:
+                            failed_files.append(f"{file_path} (not found)")
+                    except Exception as file_error:
+                        failed_files.append(f"{file_path} (error: {str(file_error)})")
+                        logger.error(f"Error deleting file {file_path}: {str(file_error)}")
+
+            result = {
+                "success": success,
+                "vector_store_cleared": success,
+                "total_documents_removed": len(documents),
+                "files_deleted": len(deleted_files),
+                "files_failed": len(failed_files),
+                "deleted_file_paths": deleted_files,
+                "failed_file_paths": failed_files
+            }
+
+            if success:
+                logger.info(f"Cleared all documents: {len(documents)} from vector store, {len(deleted_files)} files deleted")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error clearing all documents: {str(e)}")
+            raise Exception(f"Failed to clear all documents: {str(e)}")
+
+    async def get_original_document(self, document_id: str) -> Dict[str, Any]:
+        """Get the original document content for viewing"""
+        try:
+            # For now, let's just return chunks for existing documents
+            # since they don't have original content stored
+            # This will be fixed when new documents are uploaded
+            return await self.get_document_chunks(document_id)
+
+        except Exception as e:
+            logger.error(f"Error getting original document {document_id}: {str(e)}")
+            # Fallback to chunks
+            return await self.get_document_chunks(document_id)
+
     async def get_document_chunks(self, document_id: str) -> List[Dict[str, Any]]:
         """Get all chunks for a specific document"""
         try:
-            # Get chunks from vector store
+            # Get chunks from vector store using correct ChromaDB filter syntax
             chunks = await self.vector_store.get_documents(
-                where_filter={"document_id": document_id}
+                where_filter={"document_id": {"$eq": document_id}}
             )
 
             # Sort by chunk index
@@ -229,6 +389,24 @@ class RAGSystem:
         """Get statistics about the RAG system"""
         try:
             collection_info = self.vector_store.get_collection_info()
+
+            # Calculate unique documents synchronously
+            unique_documents_count = 0
+            try:
+                # Get all documents synchronously from ChromaDB
+                results = self.vector_store.collection.get(include=["metadatas"])
+                unique_doc_ids = set()
+
+                if results["metadatas"]:
+                    for metadata in results["metadatas"]:
+                        doc_id = metadata.get("document_id")
+                        if doc_id:
+                            unique_doc_ids.add(doc_id)
+
+                unique_documents_count = len(unique_doc_ids)
+            except Exception as e:
+                logger.warning(f"Error calculating unique documents: {str(e)}")
+                unique_documents_count = 0
 
             # Get actual current model info from the vector store (not cached)
             current_model_info = self.vector_store.get_model_info()
@@ -261,7 +439,7 @@ class RAGSystem:
 
             return {
                 "total_chunks": collection_info.get("document_count", 0),
-                "unique_documents": collection_info.get("unique_documents", 0),
+                "unique_documents": unique_documents_count,
                 "embedding_model": serializable_model_info,  # Use serialized model info
                 "chunking_config": {
                     "strategy": self.chunking_config.strategy.value,
@@ -406,10 +584,10 @@ class RAGSystem:
         """Get information about the current LLM"""
         return self.llm_service.get_model_info()
 
-    def change_llm(self, provider: LLMProvider, model_name: str = None, api_key: str = None) -> bool:
+    def change_llm(self, provider: LLMProvider, model_name: str = None, api_key: str = None, base_url: str = None) -> bool:
         """Change the LLM provider and model"""
         try:
-            success = self.llm_service.change_model(provider, model_name, api_key)
+            success = self.llm_service.change_model(provider, model_name, api_key, base_url)
             if success:
                 logger.info(f"LLM changed to {provider.value}: {model_name}")
             return success

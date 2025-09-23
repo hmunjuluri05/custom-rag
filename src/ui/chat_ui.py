@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 import logging
 import json
-from typing import Dict, List
+from typing import Dict, List, Union, Any
 import asyncio
 
 logger = logging.getLogger(__name__)
@@ -60,12 +60,24 @@ class ChatUI:
 
             if message_type == "query":
                 # This will be connected to the RAG system
-                response = await self.process_query(content)
-                await websocket.send_text(json.dumps({
-                    "type": "response",
-                    "content": response,
-                    "timestamp": asyncio.get_event_loop().time()
-                }))
+                response_data = await self.process_query(content)
+
+                # Handle both string responses (fallback) and dict responses (with sources)
+                if isinstance(response_data, dict):
+                    await websocket.send_text(json.dumps({
+                        "type": "response",
+                        "content": response_data.get("response", ""),
+                        "sources": response_data.get("sources", []),
+                        "timestamp": asyncio.get_event_loop().time()
+                    }))
+                else:
+                    # Fallback for string responses
+                    await websocket.send_text(json.dumps({
+                        "type": "response",
+                        "content": response_data,
+                        "sources": [],
+                        "timestamp": asyncio.get_event_loop().time()
+                    }))
 
         except Exception as e:
             logger.error(f"Error handling message: {str(e)}")
@@ -74,7 +86,7 @@ class ChatUI:
                 "content": f"Error processing message: {str(e)}"
             }))
 
-    async def process_query(self, query: str) -> str:
+    async def process_query(self, query: str) -> Union[str, Dict[str, Any]]:
         """Process user query (to be connected with RAG system)"""
         # Placeholder - this will be connected to the actual RAG system
         return f"Echo: {query} (This will be connected to the RAG system)"

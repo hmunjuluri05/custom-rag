@@ -86,8 +86,11 @@ function initializeAdmin() {
 }
 
 function setupEventListeners() {
-    // File input change
-    document.getElementById('files').addEventListener('change', handleFileSelection);
+    // File input change (check if exists first)
+    const filesInput = document.getElementById('files');
+    if (filesInput) {
+        filesInput.addEventListener('change', handleFileSelection);
+    }
 
     // Upload form submit
     document.getElementById('uploadForm').addEventListener('submit', handleUpload);
@@ -121,11 +124,6 @@ function setupDragAndDrop() {
     });
 
     dropZone.addEventListener('drop', handleDrop, false);
-
-    // Click to select files
-    dropZone.addEventListener('click', () => {
-        document.getElementById('files').click();
-    });
 }
 
 function preventDefaults(e) {
@@ -219,6 +217,15 @@ function removeFile(index) {
     handleFileSelection({ target: { files: dt.files } });
 }
 
+function uploadFiles() {
+    // Trigger the form submit which will call handleUpload
+    const uploadForm = document.getElementById('uploadForm');
+    if (uploadForm) {
+        const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+        uploadForm.dispatchEvent(submitEvent);
+    }
+}
+
 async function handleUpload(e) {
     e.preventDefault();
 
@@ -248,8 +255,11 @@ async function handleUpload(e) {
     formData.append('chunking_strategy', document.getElementById('chunkingStrategy').value);
     formData.append('chunk_size', document.getElementById('chunkSize').value);
     formData.append('chunk_overlap', document.getElementById('chunkOverlap').value);
-    formData.append('preserve_sentences', document.getElementById('preserveSentences').checked);
-    formData.append('preserve_paragraphs', document.getElementById('preserveParagraphs').checked);
+    const preserveSentencesEl = document.getElementById('preserveSentences');
+    const preserveParagraphsEl = document.getElementById('preserveParagraphs');
+
+    formData.append('preserve_sentences', preserveSentencesEl ? preserveSentencesEl.checked : true);
+    formData.append('preserve_paragraphs', preserveParagraphsEl ? preserveParagraphsEl.checked : false);
 
     try {
         const response = await fetch('/api/upload-documents/', {
@@ -264,6 +274,11 @@ async function handleUpload(e) {
             clearUploadForm();
             loadDocuments(); // Refresh document list
             loadSystemStats(); // Refresh stats
+
+            // Auto-close modal after successful upload
+            setTimeout(() => {
+                closeUploadModal();
+            }, 2000); // Close after 2 seconds to let user see the results
         } else {
             showAlert(`Upload failed: ${result.detail || 'Unknown error'}`, 'danger');
         }
@@ -334,6 +349,7 @@ function updateStatsDisplay(data) {
     const ragStats = data.rag_system || {};
     const uploadStats = data.file_uploads || {};
 
+    // Use rag_system.unique_documents as it reflects documents in the RAG system
     document.getElementById('totalDocs').textContent = ragStats.unique_documents || 0;
     document.getElementById('storageUsed').textContent = formatFileSize(uploadStats.total_size_bytes || 0);
 
@@ -394,7 +410,7 @@ function displayDocuments(documents) {
     documents.forEach(doc => {
         const uploadDate = new Date(doc.timestamp).toLocaleDateString();
         const fileIcon = getFileIcon(doc.document_type);
-        const fileSize = 'Unknown'; // Size not available in current API
+        const fileSize = doc.file_size ? formatFileSize(doc.file_size) : 'Unknown';
 
         html += `
             <tr>
@@ -417,10 +433,18 @@ function displayDocuments(documents) {
                     <span class="badge bg-info">${doc.total_chunks || 0}</span>
                 </td>
                 <td class="file-actions">
-                    <div class="btn-group btn-group-sm">
+                    <div class="btn-group btn-group-sm d-flex flex-wrap gap-1">
                         <button class="btn btn-outline-primary" onclick="viewDocument('${doc.document_id}')"
                                 title="View Details">
                             <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-outline-info" onclick="summarizeDocument('${doc.document_id}', '${doc.filename}')"
+                                title="Summarize Document">
+                            <i class="bi bi-file-text"></i>
+                        </button>
+                        <button class="btn btn-outline-success" onclick="getKeyFindings('${doc.document_id}', '${doc.filename}')"
+                                title="Key Findings">
+                            <i class="bi bi-search"></i>
                         </button>
                         <button class="btn btn-outline-warning" onclick="reprocessDocument('${doc.document_id}')"
                                 title="Reprocess">
@@ -1771,6 +1795,18 @@ function showUploadModal() {
         if (modalElement) {
             const modal = new bootstrap.Modal(modalElement);
             modal.show();
+
+            // Ensure file input event listener is set up when modal is shown
+            setTimeout(() => {
+                const filesInput = document.getElementById('files');
+                if (filesInput) {
+                    // Remove any existing listeners to avoid duplicates
+                    filesInput.removeEventListener('change', handleFileSelection);
+                    // Add the event listener
+                    filesInput.addEventListener('change', handleFileSelection);
+                    console.log('File input event listener attached');
+                }
+            }, 100);
         } else {
             console.error('Upload modal not found');
             showAlert('Upload modal not found. Please refresh the page.', 'danger');
@@ -1816,4 +1852,213 @@ function closeUploadModal() {
     } catch (error) {
         console.error('Error closing upload modal:', error);
     }
+}
+
+
+// Function to summarize a specific document
+async function summarizeDocument(documentId, filename) {
+    if (!documentId) {
+        showAlert('No document selected for summarization', 'warning');
+        return;
+    }
+
+    try {
+        showAlert(`Generating summary for "${filename}"...`, 'info');
+
+        const response = await fetch('/api/query/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                query: `Summarize the main points from the document "${filename}". Please provide a comprehensive overview of the key content.`,
+                document_filter: documentId
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            // Create a modal to show the summary
+            showDocumentSummaryModal(filename, data.response, data.sources);
+        } else {
+            const errorMessage = data?.detail || data?.message || JSON.stringify(data) || 'Unknown error';
+            showAlert(`Failed to generate summary: ${errorMessage}`, 'danger');
+        }
+    } catch (error) {
+        console.error('Error generating summary:', error);
+        showAlert('Network error generating summary', 'danger');
+    }
+}
+
+// Function to get key findings from a specific document
+async function getKeyFindings(documentId, filename) {
+    if (!documentId) {
+        showAlert('No document selected for key findings', 'warning');
+        return;
+    }
+
+    try {
+        showAlert(`Extracting key findings from "${filename}"...`, 'info');
+
+        const response = await fetch('/api/query/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                query: `What are the key findings, insights, or important conclusions from the document "${filename}"? Please provide specific details and highlight the most significant points.`,
+                document_filter: documentId
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            // Create a modal to show the key findings
+            showDocumentFindingsModal(filename, data.response, data.sources);
+        } else {
+            const errorMessage = data?.detail || data?.message || JSON.stringify(data) || 'Unknown error';
+            showAlert(`Failed to extract key findings: ${errorMessage}`, 'danger');
+        }
+    } catch (error) {
+        console.error('Error extracting key findings:', error);
+        showAlert('Network error extracting key findings', 'danger');
+    }
+}
+
+// Function to show document summary in a modal
+function showDocumentSummaryModal(filename, summary, sources) {
+    const modalId = 'documentSummaryModal';
+    let modal = document.getElementById(modalId);
+
+    if (!modal) {
+        // Create modal if it doesn't exist
+        const modalHtml = `
+            <div class="modal fade" id="${modalId}" tabindex="-1" aria-labelledby="${modalId}Label" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="${modalId}Label">
+                                <i class="bi bi-file-text me-2"></i>Document Summary
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="summaryContent"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        modal = document.getElementById(modalId);
+    }
+
+    // Update content
+    const titleElement = modal.querySelector('.modal-title');
+    titleElement.innerHTML = `<i class="bi bi-file-text me-2"></i>Summary: ${filename}`;
+
+    const contentElement = modal.querySelector('#summaryContent');
+    let sourcesHtml = '';
+    if (sources && sources.length > 0) {
+        sourcesHtml = `
+            <hr>
+            <h6>Sources:</h6>
+            <div class="source-refs">
+                ${sources.map(source => `
+                    <span class="source-ref">
+                        ${source.document_name || source.filename || 'Unknown'}
+                        ${source.page ? `(Page ${source.page})` : ''}
+                    </span>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    contentElement.innerHTML = `
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Document:</strong> ${filename}
+        </div>
+        <div class="summary-text">
+            ${summary.replace(/\n/g, '<br>')}
+        </div>
+        ${sourcesHtml}
+    `;
+
+    // Show modal
+    const bootstrapModal = new bootstrap.Modal(modal);
+    bootstrapModal.show();
+}
+
+// Function to show document findings in a modal
+function showDocumentFindingsModal(filename, findings, sources) {
+    const modalId = 'documentFindingsModal';
+    let modal = document.getElementById(modalId);
+
+    if (!modal) {
+        // Create modal if it doesn't exist
+        const modalHtml = `
+            <div class="modal fade" id="${modalId}" tabindex="-1" aria-labelledby="${modalId}Label" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="${modalId}Label">
+                                <i class="bi bi-search me-2"></i>Key Findings
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="findingsContent"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        modal = document.getElementById(modalId);
+    }
+
+    // Update content
+    const titleElement = modal.querySelector('.modal-title');
+    titleElement.innerHTML = `<i class="bi bi-search me-2"></i>Key Findings: ${filename}`;
+
+    const contentElement = modal.querySelector('#findingsContent');
+    let sourcesHtml = '';
+    if (sources && sources.length > 0) {
+        sourcesHtml = `
+            <hr>
+            <h6>Sources:</h6>
+            <div class="source-refs">
+                ${sources.map(source => `
+                    <span class="source-ref">
+                        ${source.document_name || source.filename || 'Unknown'}
+                        ${source.page ? `(Page ${source.page})` : ''}
+                    </span>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    contentElement.innerHTML = `
+        <div class="alert alert-success">
+            <i class="bi bi-search me-2"></i>
+            <strong>Document:</strong> ${filename}
+        </div>
+        <div class="findings-text">
+            ${findings.replace(/\n/g, '<br>')}
+        </div>
+        ${sourcesHtml}
+    `;
+
+    // Show modal
+    const bootstrapModal = new bootstrap.Modal(modal);
+    bootstrapModal.show();
 }

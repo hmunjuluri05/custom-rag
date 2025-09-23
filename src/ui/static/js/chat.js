@@ -134,9 +134,13 @@ function addMessageToChat(content, sender, sources = null, messageType = 'normal
     // Add sources if provided
     if (sources && sources.length > 0) {
         messageHtml += '<div class="source-refs">';
-        messageHtml += '<small><strong>Sources:</strong></small><br>';
+        messageHtml += '<small><strong>📚 Sources:</strong></small><br>';
         sources.forEach(source => {
-            messageHtml += `<span class="source-ref">${source.filename} (${source.relevance_score}%)</span>`;
+            const relevanceScore = Math.round(source.relevance_score || 0);
+            const chunkInfo = source.chunk_count > 1 ? ` (${source.chunk_count} chunks)` : '';
+            messageHtml += `<a href="/document/${source.document_id}" target="_blank" class="source-ref" style="text-decoration: none; color: inherit;">`;
+            messageHtml += `<i class="bi bi-file-text"></i> ${source.filename} (${relevanceScore}% relevance${chunkInfo})`;
+            messageHtml += `</a>`;
         });
         messageHtml += '</div>';
     }

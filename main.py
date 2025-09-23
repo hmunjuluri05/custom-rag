@@ -57,10 +57,46 @@ async def root(request: Request):
 @app.get("/upload", response_class=HTMLResponse)
 async def admin_panel(request: Request):
     """Admin panel for document upload and management"""
+    import time
     return templates.TemplateResponse(
         "upload.html",
-        {"request": request, "page_title": "Admin Panel"}
+        {"request": request, "page_title": "Admin Panel", "timestamp": int(time.time())}
     )
+
+# Document viewing endpoint
+@app.get("/document/{document_id}", response_class=HTMLResponse)
+async def view_document(request: Request, document_id: str):
+    """View original document content for verification"""
+    try:
+        # Try to get original document content first
+        doc_data = await rag_system.get_original_document(document_id)
+
+        if not doc_data:
+            return templates.TemplateResponse(
+                "error.html",
+                {"request": request, "error": "Document not found", "page_title": "Error"}
+            )
+
+        # doc_data is a list of chunks, so directly use chunks view
+        chunks = doc_data if isinstance(doc_data, list) else await rag_system.get_document_chunks(document_id)
+        doc_metadata = chunks[0]["metadata"] if chunks else {}
+
+        return templates.TemplateResponse(
+            "document_view.html",
+            {
+                "request": request,
+                "document_id": document_id,
+                "filename": doc_metadata.get("filename", "Unknown"),
+                "chunks": chunks,
+                "page_title": f"Document: {doc_metadata.get('filename', 'Unknown')}"
+            }
+        )
+
+    except Exception as e:
+        return templates.TemplateResponse(
+            "error.html",
+            {"request": request, "error": str(e), "page_title": "Error"}
+        )
 
 # Include API routers with prefix
 app.include_router(documents_router, prefix="/api", tags=["documents"])

@@ -16,6 +16,7 @@ class LLMModelChange(BaseModel):
     provider: str
     model_name: str = None
     api_key: str = None
+    base_url: str = None
 
 def create_system_router(rag_system, file_service):
     """Create system/stats API router with dependencies"""
@@ -181,7 +182,8 @@ def create_system_router(rag_system, file_service):
             success = rag_system.change_llm(
                 provider=provider,
                 model_name=model_change.model_name,
-                api_key=model_change.api_key
+                api_key=model_change.api_key,
+                base_url=model_change.base_url
             )
 
             if success:
@@ -200,6 +202,16 @@ def create_system_router(rag_system, file_service):
                 )
         except Exception as e:
             logger.error(f"Error changing LLM model: {str(e)}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.post("/clear-all")
+    async def clear_all_documents():
+        """Clear all documents from both vector database and file system"""
+        try:
+            result = await rag_system.clear_all_documents()
+            return JSONResponse(content=result)
+        except Exception as e:
+            logger.error(f"Error clearing all documents: {str(e)}")
             raise HTTPException(status_code=500, detail=str(e))
 
     return router

@@ -105,13 +105,21 @@ class VectorStore:
 
             if results["ids"] and results["ids"][0]:
                 for i in range(len(results["ids"][0])):
+                    distance = results["distances"][0][i]
+
+                    # For cosine distance, values range from 0 (identical) to 2 (opposite)
+                    # Convert to relevance: 0 distance = 100% relevance, 2 distance = 0% relevance
+                    relevance_score = max(0, min(100, (1 - distance/2) * 100))
+
+                    logger.debug(f"Distance: {distance}, Relevance: {relevance_score}")
+
                     result = {
                         "id": results["ids"][0][i],
                         "content": results["documents"][0][i],
                         "metadata": results["metadatas"][0][i],
-                        "distance": results["distances"][0][i],
-                        "similarity_score": 1 - results["distances"][0][i],  # Convert distance to similarity
-                        "relevance_score": round((1 - results["distances"][0][i]) * 100, 2)
+                        "distance": distance,
+                        "similarity_score": 1 - distance,  # Convert distance to similarity
+                        "relevance_score": round(relevance_score, 2)
                     }
                     formatted_results.append(result)
 

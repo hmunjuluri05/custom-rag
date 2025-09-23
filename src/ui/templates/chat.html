@@ -94,6 +94,16 @@
             margin: 0.25rem 0.25rem 0 0;
             border-radius: 0.25rem;
             font-size: 0.75rem;
+            transition: all 0.2s ease;
+            border: 1px solid #ced4da;
+        }
+
+        .source-ref:hover {
+            background-color: #007bff;
+            color: white !important;
+            border-color: #007bff;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,123,255,0.3);
         }
     </style>
 </head>
@@ -113,7 +123,7 @@
         <div class="row mb-4">
             <div class="col-12">
                 <div class="jumbotron bg-light p-4 rounded">
-                    <h1 class="display-5">🔍 Welcome to Knowledge Base Search</h1>
+                    <h1 class="display-5">🔍 Knowledge Base Search</h1>
                     <p class="lead">Ask questions about your documents and get precise answers instantly.</p>
                 </div>
             </div>
@@ -162,15 +172,10 @@
                         <h6 class="mb-0"><i class="bi bi-lightning-charge"></i> Quick Actions</h6>
                     </div>
                     <div class="card-body">
-                        <button class="btn btn-outline-primary btn-sm mb-2 w-100"
-                                onclick="sendPredefinedMessage('Summarize the main points from all documents')">
-                            📄 Summarize Documents
-                        </button>
-                        <button class="btn btn-outline-primary btn-sm mb-2 w-100"
-                                onclick="sendPredefinedMessage('What are the key findings?')">
-                            🔍 Key Findings
-                        </button>
-                        <hr>
+                        <div class="alert alert-info alert-sm">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <small>Use the Admin Panel to summarize or find key insights for individual documents.</small>
+                        </div>
                         <button class="btn btn-outline-secondary btn-sm w-100"
                                 onclick="clearChat()">
                             🗑️ Clear Chat
