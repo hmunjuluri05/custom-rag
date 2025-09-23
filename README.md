@@ -179,9 +179,42 @@ sequenceDiagram
 
 ### Prerequisites
 - Python 3.13+
-- uv package manager (recommended)
 
 ### Installation
+
+#### Option 1: Using pip (Standard Python Package Manager)
+
+1. **Clone and setup**:
+   ```bash
+   git clone <repository-url>
+   cd custom-rag
+
+   # Create virtual environment (recommended)
+   python -m venv venv
+
+   # Activate virtual environment
+   # On Windows:
+   venv\Scripts\activate
+   # On macOS/Linux:
+   source venv/bin/activate
+
+   # Install dependencies
+   pip install -r requirements.txt
+   ```
+
+2. **Configure environment** (optional):
+   ```bash
+   # Create .env file for API keys
+   echo "OPENAI_API_KEY=your_key_here" > .env
+   echo "GOOGLE_API_KEY=your_key_here" >> .env
+   ```
+
+3. **Run the application**:
+   ```bash
+   python main.py
+   ```
+
+#### Option 2: Using uv package manager (Faster)
 
 1. **Clone and setup**:
    ```bash
@@ -202,7 +235,9 @@ sequenceDiagram
    python main.py
    ```
 
-4. **Access the interface**:
+#### Accessing the Application
+
+**For both installation methods**:
    - 🏠 **Main Chat**: http://localhost:8000
    - ⚙️ **Admin Panel**: http://localhost:8000/upload
    - 📚 **API Docs**: http://localhost:8000/docs
