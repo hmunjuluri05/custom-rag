@@ -17,6 +17,7 @@ class RAGSystem:
                  collection_name: str = "documents",
                  embedding_model: str = "all-mpnet-base-v2",
                  embedding_api_key: str = None,
+                 embedding_base_url: str = None,
                  chunking_config: Optional[ChunkingConfig] = None,
                  llm_provider: LLMProvider = None,
                  llm_model: str = None,
@@ -31,7 +32,8 @@ class RAGSystem:
         self.vector_store = VectorStore(
             collection_name=collection_name,
             embedding_model=embedding_model,
-            embedding_api_key=embedding_api_key
+            embedding_api_key=embedding_api_key,
+            embedding_base_url=embedding_base_url
         )
 
         # Initialize LLM service with default configuration if not provided
@@ -491,7 +493,7 @@ class RAGSystem:
         """Get information about the current embedding model"""
         return self.vector_store.get_model_info()
 
-    async def change_embedding_model(self, new_model_name: str, embedding_api_key: str = None, force_reprocess: bool = False) -> Dict[str, Any]:
+    async def change_embedding_model(self, new_model_name: str, embedding_api_key: str = None, embedding_base_url: str = None, force_reprocess: bool = False) -> Dict[str, Any]:
         """Change the embedding model (requires reprocessing documents)"""
         try:
             # Get current stats before change
@@ -522,7 +524,7 @@ class RAGSystem:
                 }
 
             # Change the model
-            success = self.vector_store.change_embedding_model(new_model_name, embedding_api_key)
+            success = self.vector_store.change_embedding_model(new_model_name, embedding_api_key, embedding_base_url)
 
             if not success:
                 return {
@@ -567,10 +569,10 @@ class RAGSystem:
                 "current_model": self.get_current_embedding_model()
             }
 
-    def change_embedding_model_sync(self, new_model_name: str, embedding_api_key: str = None) -> bool:
+    def change_embedding_model_sync(self, new_model_name: str, embedding_api_key: str = None, embedding_base_url: str = None) -> bool:
         """Synchronous version - Change the embedding model (requires reprocessing documents)"""
         try:
-            success = self.vector_store.change_embedding_model(new_model_name, embedding_api_key)
+            success = self.vector_store.change_embedding_model(new_model_name, embedding_api_key, embedding_base_url)
             if success:
                 logger.warning(f"Embedding model changed to {new_model_name}. "
                              f"Existing documents should be reprocessed for optimal results.")

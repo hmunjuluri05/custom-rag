@@ -63,37 +63,118 @@ class OpenAIModel(LLMModel):
             logger.warning("No API key provided. Set OPENAI_API_KEY or LLM_API_GATEWAY_KEY environment variable.")
 
     async def generate_response(self, context: str, query: str) -> str:
-        """Generate response using OpenAI GPT"""
+        """Generate response using OpenAI GPT with retry logic"""
         if not self._client:
             raise ValueError("OpenAI client not initialized. Please provide API key.")
 
-        try:
-            system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
-            Use only the information from the context to answer questions. If the context doesn't contain relevant information,
-            say so clearly. Be concise and accurate."""
+        system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
+        Use only the information from the context to answer questions. If the context doesn't contain relevant information,
+        say so clearly. Be concise and accurate."""
 
-            user_prompt = f"""Context from documents:
+        user_prompt = f"""Context from documents:
 {context}
 
 Question: {query}
 
 Please answer the question based only on the provided context."""
 
-            response = await self._client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0.7,
-                max_tokens=1000
-            )
+        # Retry logic for connection issues
+        max_retries = 3
+        base_delay = 1
 
-            return response.choices[0].message.content.strip()
+        for attempt in range(max_retries):
+            try:
+                response = await self._client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=1000,
+                    timeout=30  # Add timeout
+                )
 
-        except Exception as e:
-            logger.error(f"OpenAI API error: {str(e)}")
-            return f"Error generating response with OpenAI: {str(e)}"
+                return response.choices[0].message.content.strip()
+
+            except Exception as e:
+                error_msg = str(e).lower()
+
+                # Handle different types of errors
+                if "connection" in error_msg or "timeout" in error_msg or "network" in error_msg:
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)  # Exponential backoff
+                        logger.warning(f"Connection error (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {delay}s...")
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        logger.error(f"OpenAI connection failed after {max_retries} attempts: {e}")
+                        return self._format_connection_error(e)
+
+                elif "rate limit" in error_msg or "quota" in error_msg:
+                    logger.error(f"OpenAI rate limit/quota error: {e}")
+                    return "❌ OpenAI API rate limit exceeded or quota reached. Please check your OpenAI account billing and usage limits."
+
+                elif "api key" in error_msg or "unauthorized" in error_msg or "401" in error_msg:
+                    logger.error(f"OpenAI authentication error: {e}")
+                    return "❌ OpenAI API authentication failed. Please check your API key in the .env file or environment variables."
+
+                elif "model" in error_msg and "not found" in error_msg:
+                    logger.error(f"OpenAI model error: {e}")
+                    return f"❌ OpenAI model '{self.model_name}' not found or not accessible. Please check your model name and permissions."
+
+                else:
+                    # Generic error
+                    logger.error(f"OpenAI API error: {e}")
+                    return f"❌ OpenAI API error: {e}"
+
+        # This shouldn't be reached, but just in case
+        return "❌ Failed to generate response after multiple attempts."
+
+    def _format_connection_error(self, error: Exception) -> str:
+        """Format connection error with helpful troubleshooting information"""
+        error_msg = str(error)
+
+        base_message = "❌ Connection error communicating with OpenAI API."
+
+        if "ssl" in error_msg.lower() or "certificate" in error_msg.lower():
+            return f"""{base_message}
+
+🔒 SSL Certificate Issue Detected:
+• This often happens on corporate networks
+• Try adding BYPASS_SSL_VERIFICATION=true to your .env file
+• Or contact your IT team about certificate configuration
+• Run: python diagnose_openai_connection.py for detailed help"""
+
+        elif "timeout" in error_msg.lower():
+            return f"""{base_message}
+
+⏱️ Request Timeout:
+• Check your internet connection
+• OpenAI services might be experiencing delays
+• Try again in a few moments
+• Check status: https://status.openai.com/"""
+
+        elif "connection refused" in error_msg.lower() or "network" in error_msg.lower():
+            return f"""{base_message}
+
+🌐 Network Connection Issue:
+• Check your internet connection
+• Verify firewall/proxy settings allow HTTPS to api.openai.com
+• If on corporate network, contact IT about API access
+• Try from a different network (mobile hotspot) to test
+• Run: python diagnose_openai_connection.py for detailed diagnosis"""
+
+        else:
+            return f"""{base_message}
+
+🔧 Troubleshooting Steps:
+• Check your internet connection
+• Verify OpenAI API status: https://status.openai.com/
+• Ensure API key is correctly configured
+• Run: python diagnose_openai_connection.py for detailed diagnosis
+
+Error details: {error_msg}"""
 
     def get_model_info(self) -> Dict[str, Any]:
         if self.base_url:

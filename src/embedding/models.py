@@ -5,6 +5,7 @@ import logging
 from abc import ABC, abstractmethod
 import asyncio
 from enum import Enum
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -80,16 +81,31 @@ class SentenceTransformerModel(EmbeddingModel):
             raise Exception(f"Failed to calculate similarity: {str(e)}")
 
 class OpenAIEmbeddingModel(EmbeddingModel):
-    """OpenAI embedding model wrapper"""
+    """OpenAI embedding model wrapper with API Gateway support"""
 
-    def __init__(self, model_name: str = "text-embedding-3-large", api_key: str = None):
+    def __init__(self, model_name: str = "text-embedding-3-large", api_key: str = None, base_url: str = None):
         self.model_name = model_name
-        self.api_key = api_key
+        # Try API key from parameter, then environment variables
+        self.api_key = api_key or os.getenv('OPENAI_API_KEY') or os.getenv('EMBEDDING_API_GATEWAY_KEY') or os.getenv('LLM_API_GATEWAY_KEY')
+        # Try base_url from parameter, then environment variables
+        self.base_url = base_url or os.getenv('EMBEDDING_API_GATEWAY_URL') or os.getenv('LLM_API_GATEWAY_URL')
+
         logger.info(f"Initializing OpenAI embedding model: {model_name}")
 
         try:
             import openai
-            self.client = openai.OpenAI(api_key=api_key) if api_key else openai.OpenAI()
+
+            client_kwargs = {}
+            if self.api_key:
+                client_kwargs["api_key"] = self.api_key
+
+            if self.base_url:
+                client_kwargs["base_url"] = self.base_url
+                logger.info(f"Using API Gateway for embeddings: {self.base_url}")
+            else:
+                logger.info("Using direct OpenAI API for embeddings")
+
+            self.client = openai.OpenAI(**client_kwargs)
 
             # Model dimensions mapping
             self.model_dimensions = {
@@ -104,7 +120,7 @@ class OpenAIEmbeddingModel(EmbeddingModel):
             else:
                 self.dimensions = self.model_dimensions[model_name]
 
-            logger.info(f"Successfully initialized OpenAI model: {model_name}")
+            logger.info(f"Successfully initialized OpenAI embedding model: {model_name}")
 
         except ImportError:
             raise Exception("OpenAI library not installed. Please install with: pip install openai")
@@ -148,17 +164,30 @@ class OpenAIEmbeddingModel(EmbeddingModel):
         return self.model_name
 
 class GoogleEmbeddingModel(EmbeddingModel):
-    """Google embedding model wrapper"""
+    """Google embedding model wrapper with API Gateway support"""
 
-    def __init__(self, model_name: str = "models/embedding-001", api_key: str = None):
+    def __init__(self, model_name: str = "models/embedding-001", api_key: str = None, base_url: str = None):
         self.model_name = model_name
-        self.api_key = api_key
+        # Try API key from parameter, then environment variables
+        self.api_key = api_key or os.getenv('GOOGLE_API_KEY') or os.getenv('EMBEDDING_API_GATEWAY_KEY') or os.getenv('LLM_API_GATEWAY_KEY')
+        # Try base_url from parameter, then environment variables
+        self.base_url = base_url or os.getenv('EMBEDDING_API_GATEWAY_URL') or os.getenv('LLM_API_GATEWAY_URL')
+
         logger.info(f"Initializing Google embedding model: {model_name}")
 
         try:
             import google.generativeai as genai
-            if api_key:
-                genai.configure(api_key=api_key)
+
+            if self.base_url:
+                # For API Gateway, we might need to configure transport or use custom client
+                logger.info(f"Using API Gateway for Google embeddings: {self.base_url}")
+                # Note: Google's library might need additional configuration for custom base URLs
+                logger.warning("Google embedding API Gateway support is limited. Consider using OpenAI-compatible endpoints.")
+
+            if self.api_key:
+                genai.configure(api_key=self.api_key)
+            else:
+                logger.info("Using default Google API configuration")
 
             # Model dimensions mapping for Google models
             self.model_dimensions = {
@@ -172,7 +201,7 @@ class GoogleEmbeddingModel(EmbeddingModel):
             else:
                 self.dimensions = self.model_dimensions[model_name]
 
-            logger.info(f"Successfully initialized Google model: {model_name}")
+            logger.info(f"Successfully initialized Google embedding model: {model_name}")
 
         except ImportError:
             raise Exception("Google Generative AI library not installed. Please install with: pip install google-generativeai")
@@ -393,8 +422,8 @@ class EmbeddingModelFactory:
     }
 
     @classmethod
-    def create_model(cls, model_name: str = "all-mpnet-base-v2", api_key: str = None) -> EmbeddingModel:
-        """Create an embedding model"""
+    def create_model(cls, model_name: str = "all-mpnet-base-v2", api_key: str = None, base_url: str = None) -> EmbeddingModel:
+        """Create an embedding model with optional API Gateway support"""
         if model_name not in cls.AVAILABLE_MODELS:
             logger.warning(f"Model {model_name} not in available models list, attempting to load as local model")
             return SentenceTransformerModel(model_name)
@@ -405,13 +434,11 @@ class EmbeddingModelFactory:
         if provider == EmbeddingProvider.LOCAL:
             return SentenceTransformerModel(model_name)
         elif provider == EmbeddingProvider.OPENAI:
-            if not api_key:
-                raise ValueError(f"API key required for OpenAI model {model_name}")
-            return OpenAIEmbeddingModel(model_name, api_key)
+            # For OpenAI models, api_key is optional if using environment variables or API gateway
+            return OpenAIEmbeddingModel(model_name, api_key, base_url)
         elif provider == EmbeddingProvider.GOOGLE:
-            if not api_key:
-                raise ValueError(f"API key required for Google model {model_name}")
-            return GoogleEmbeddingModel(model_name, api_key)
+            # For Google models, api_key is optional if using environment variables or API gateway
+            return GoogleEmbeddingModel(model_name, api_key, base_url)
         else:
             raise ValueError(f"Unknown provider {provider} for model {model_name}")
 
@@ -436,10 +463,11 @@ class EmbeddingModelFactory:
 class EmbeddingService:
     """Service for managing embeddings and similarity search"""
 
-    def __init__(self, model_name: str = "all-mpnet-base-v2", api_key: str = None):
-        self.model = EmbeddingModelFactory.create_model(model_name, api_key)
+    def __init__(self, model_name: str = "all-mpnet-base-v2", api_key: str = None, base_url: str = None):
+        self.model = EmbeddingModelFactory.create_model(model_name, api_key, base_url)
         self.model_name = model_name
         self.api_key = api_key
+        self.base_url = base_url
 
     def encode_texts(self, texts: List[str], batch_size: int = 32) -> List[np.ndarray]:
         """Encode texts in batches"""
@@ -502,13 +530,14 @@ class EmbeddingService:
             )
         }
 
-    def change_model(self, new_model_name: str, api_key: str = None) -> bool:
+    def change_model(self, new_model_name: str, api_key: str = None, base_url: str = None) -> bool:
         """Change the embedding model"""
         try:
             old_model = self.model_name
-            self.model = EmbeddingModelFactory.create_model(new_model_name, api_key)
+            self.model = EmbeddingModelFactory.create_model(new_model_name, api_key, base_url)
             self.model_name = new_model_name
             self.api_key = api_key
+            self.base_url = base_url
             logger.info(f"Changed embedding model from {old_model} to {new_model_name}")
             return True
 

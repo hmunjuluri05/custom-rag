@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 class EmbeddingModelChange(BaseModel):
     model_name: str
     api_key: str = None
+    base_url: str = None
     force_reprocess: bool = False
 
 class LLMModelChange(BaseModel):
@@ -135,6 +136,7 @@ def create_system_router(rag_system, file_service):
             result = await rag_system.change_embedding_model(
                 model_change.model_name,
                 model_change.api_key,
+                model_change.base_url,
                 model_change.force_reprocess
             )
             return JSONResponse(content=result)
