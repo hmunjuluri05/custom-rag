@@ -7,6 +7,10 @@ wheels/
 uploads/
 chroma_db/
 *.egg-info
+.idea/
+.claude/
+
+
 
 # Virtual environments
 .venv

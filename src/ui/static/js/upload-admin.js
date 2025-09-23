@@ -60,6 +60,7 @@ function initializeAdmin() {
     window.closeLLMModal = closeLLMModal;
     window.showUploadModal = showUploadModal;
     window.closeUploadModal = closeUploadModal;
+    window.removePersistentAlert = removePersistentAlert;
 
     // Add click event listeners as backup
     setTimeout(() => {
@@ -1862,8 +1863,18 @@ async function summarizeDocument(documentId, filename) {
         return;
     }
 
+    // Find the button that triggered this action and show loading state
+    const summarizeButton = document.querySelector(`button[onclick="summarizeDocument('${documentId}', '${filename}')"]`);
+    const originalButtonHtml = summarizeButton ? summarizeButton.innerHTML : null;
+
+    if (summarizeButton) {
+        summarizeButton.disabled = true;
+        summarizeButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Processing...';
+    }
+
     try {
-        showAlert(`Generating summary for "${filename}"...`, 'info');
+        // Show loading alert
+        const loadingAlertId = showPersistentAlert(`<i class="bi bi-hourglass-split me-2"></i>Generating summary for "${filename}"... This may take a moment.`, 'info');
 
         const response = await fetch('/api/query/', {
             method: 'POST',
@@ -1878,9 +1889,13 @@ async function summarizeDocument(documentId, filename) {
 
         const data = await response.json();
 
+        // Remove loading alert
+        removePersistentAlert(loadingAlertId);
+
         if (response.ok) {
             // Create a modal to show the summary
             showDocumentSummaryModal(filename, data.response, data.sources);
+            showAlert(`Summary generated successfully for "${filename}"`, 'success');
         } else {
             const errorMessage = data?.detail || data?.message || JSON.stringify(data) || 'Unknown error';
             showAlert(`Failed to generate summary: ${errorMessage}`, 'danger');
@@ -1888,6 +1903,12 @@ async function summarizeDocument(documentId, filename) {
     } catch (error) {
         console.error('Error generating summary:', error);
         showAlert('Network error generating summary', 'danger');
+    } finally {
+        // Restore button state
+        if (summarizeButton && originalButtonHtml) {
+            summarizeButton.disabled = false;
+            summarizeButton.innerHTML = originalButtonHtml;
+        }
     }
 }
 
@@ -1898,8 +1919,18 @@ async function getKeyFindings(documentId, filename) {
         return;
     }
 
+    // Find the button that triggered this action and show loading state
+    const findingsButton = document.querySelector(`button[onclick="getKeyFindings('${documentId}', '${filename}')"]`);
+    const originalButtonHtml = findingsButton ? findingsButton.innerHTML : null;
+
+    if (findingsButton) {
+        findingsButton.disabled = true;
+        findingsButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Analyzing...';
+    }
+
     try {
-        showAlert(`Extracting key findings from "${filename}"...`, 'info');
+        // Show loading alert
+        const loadingAlertId = showPersistentAlert(`<i class="bi bi-search me-2"></i>Extracting key findings from "${filename}"... This may take a moment.`, 'info');
 
         const response = await fetch('/api/query/', {
             method: 'POST',
@@ -1914,9 +1945,13 @@ async function getKeyFindings(documentId, filename) {
 
         const data = await response.json();
 
+        // Remove loading alert
+        removePersistentAlert(loadingAlertId);
+
         if (response.ok) {
             // Create a modal to show the key findings
             showDocumentFindingsModal(filename, data.response, data.sources);
+            showAlert(`Key findings extracted successfully for "${filename}"`, 'success');
         } else {
             const errorMessage = data?.detail || data?.message || JSON.stringify(data) || 'Unknown error';
             showAlert(`Failed to extract key findings: ${errorMessage}`, 'danger');
@@ -1924,6 +1959,12 @@ async function getKeyFindings(documentId, filename) {
     } catch (error) {
         console.error('Error extracting key findings:', error);
         showAlert('Network error extracting key findings', 'danger');
+    } finally {
+        // Restore button state
+        if (findingsButton && originalButtonHtml) {
+            findingsButton.disabled = false;
+            findingsButton.innerHTML = originalButtonHtml;
+        }
     }
 }
 
@@ -2061,4 +2102,41 @@ function showDocumentFindingsModal(filename, findings, sources) {
     // Show modal
     const bootstrapModal = new bootstrap.Modal(modal);
     bootstrapModal.show();
+}
+
+// Helper functions for persistent loading alerts
+let persistentAlertCounter = 0;
+const activePersistentAlerts = new Map();
+
+function showPersistentAlert(message, type = 'info') {
+    const alertId = `persistent-alert-${++persistentAlertCounter}`;
+
+    const alertContainer = document.createElement('div');
+    alertContainer.id = alertId;
+    alertContainer.className = `alert alert-${type} alert-dismissible fade show position-fixed d-flex align-items-center`;
+    alertContainer.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 350px; max-width: 500px;';
+    alertContainer.innerHTML = `
+        <div class="flex-grow-1">${message}</div>
+        <button type="button" class="btn-close ms-2" onclick="removePersistentAlert('${alertId}')"></button>
+    `;
+
+    document.body.appendChild(alertContainer);
+    activePersistentAlerts.set(alertId, alertContainer);
+
+    return alertId;
+}
+
+function removePersistentAlert(alertId) {
+    const alertElement = activePersistentAlerts.get(alertId);
+    if (alertElement && alertElement.parentNode) {
+        alertElement.classList.remove('show');
+        alertElement.classList.add('fade');
+
+        setTimeout(() => {
+            if (alertElement.parentNode) {
+                alertElement.parentNode.removeChild(alertElement);
+            }
+            activePersistentAlerts.delete(alertId);
+        }, 150);
+    }
 }
