@@ -205,9 +205,9 @@ class DemoLLMModel:
 class DemoEmbeddingModel:
     """Demo embedding model that generates fake embeddings"""
 
-    def __init__(self, model_name: str = "demo-embeddings", **kwargs):
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2", **kwargs):
         self.model_name = model_name
-        self.dimension = 384  # Standard dimension for demo
+        self.dimension = 384  # Standard dimension for this model
 
         logger.info(f"Initialized demo embedding model: {model_name}")
 
@@ -421,3 +421,4 @@ This demonstrates how technical documentation would appear in the document viewe
         "title": "Demo Document",
         "content": "This is demo document content showing how the document viewer would display actual file contents."
     })
+

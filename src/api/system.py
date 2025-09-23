@@ -91,7 +91,12 @@ def create_system_router(rag_system, file_service):
             serializable_models = {}
             for model_name, model_info in models.items():
                 serializable_info = model_info.copy()
-                serializable_info['provider'] = model_info['provider'].value
+                # Handle both enum and string provider values
+                provider = model_info['provider']
+                if hasattr(provider, 'value'):
+                    serializable_info['provider'] = provider.value
+                else:
+                    serializable_info['provider'] = str(provider)
                 serializable_models[model_name] = serializable_info
             return JSONResponse(content=serializable_models)
         except Exception as e:

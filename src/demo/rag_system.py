@@ -209,7 +209,12 @@ class DemoRAGSystem:
         return {
             "total_documents": len(self.demo_documents),
             "total_chunks": total_chunks,
-            "embedding_model": self.embedding_model.get_model_name(),
+            "embedding_model": {
+                "model_name": self.embedding_model.get_model_name(),
+                "provider": "local",
+                "dimension": self.embedding_model.get_dimension(),
+                "demo_mode": True
+            },
             "llm_model": self.llm_model.get_model_info()["model_name"],
             "demo_mode": True,
             "system_status": "Demo Mode Active",
@@ -228,13 +233,17 @@ class DemoRAGSystem:
         """Get LLM model information"""
         return self.llm_model.get_model_info()
 
+    def get_llm_info(self) -> Dict[str, Any]:
+        """Get LLM model information (alias for API compatibility)"""
+        return self.get_llm_model_info()
+
     def get_embedding_model_info(self) -> Dict[str, Any]:
         """Get embedding model information"""
         return {
             "model_name": self.embedding_model.get_model_name(),
             "dimension": self.embedding_model.get_dimension(),
-            "provider": "demo",
-            "description": "Demo embedding model for UI testing",
+            "provider": "local",
+            "description": "Demo embedding model simulating Hugging Face",
             "demo_mode": True
         }
 
@@ -299,29 +308,43 @@ class DemoRAGSystem:
         }
 
     def get_available_embeddings(self) -> Dict[str, Dict[str, Any]]:
-        """Get available demo embedding models"""
-        return {
-            "demo-embeddings": {
-                "provider": "demo",
-                "dimension": 384,
-                "description": "Demo embedding model for UI testing",
-                "size": "Demo",
-                "category": "Demo",
-                "recommended": True,
-                "requires_api_key": False,
-                "cost": "Free"
-            },
-            "demo-large-embeddings": {
-                "provider": "demo",
-                "dimension": 1536,
-                "description": "Demo large embedding model",
-                "size": "Demo",
-                "category": "Demo",
-                "recommended": False,
-                "requires_api_key": False,
-                "cost": "Free"
+        """Get available embedding models (delegates to real factory)"""
+        from ..embedding.models import EmbeddingModelFactory
+        return EmbeddingModelFactory.get_available_models()
+
+    def change_llm(self, provider, model_name: str = None, api_key: str = None, base_url: str = None) -> bool:
+        """Change LLM model (demo version)"""
+        try:
+            old_model = self.llm_model.model_name
+            new_model = model_name or f"demo-{provider.value if hasattr(provider, 'value') else provider}"
+            self.llm_model.model_name = new_model
+            logger.info(f"Demo LLM changed from {old_model} to {new_model}")
+            return True
+        except Exception as e:
+            logger.error(f"Error changing demo LLM: {e}")
+            return False
+
+    async def clear_all_documents(self) -> Dict[str, Any]:
+        """Clear all documents (demo version)"""
+        try:
+            document_count = len(self.demo_documents)
+            self.demo_documents = []
+            await self.vector_store.clear_collection()
+
+            logger.info(f"Demo: Cleared {document_count} documents")
+            return {
+                "success": True,
+                "message": f"Cleared {document_count} demo documents",
+                "documents_removed": document_count,
+                "demo_mode": True
             }
-        }
+        except Exception as e:
+            logger.error(f"Error clearing demo documents: {e}")
+            return {
+                "success": False,
+                "message": f"Error clearing documents: {str(e)}",
+                "demo_mode": True
+            }
 
 def create_demo_rag_system() -> DemoRAGSystem:
     """Factory function to create demo RAG system"""

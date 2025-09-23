@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 import asyncio
 from enum import Enum
 import os
+from ..demo.models import is_demo_mode, DemoEmbeddingModel
 
 logger = logging.getLogger(__name__)
 
@@ -424,6 +425,10 @@ class EmbeddingModelFactory:
     @classmethod
     def create_model(cls, model_name: str = "all-mpnet-base-v2", api_key: str = None, base_url: str = None) -> EmbeddingModel:
         """Create an embedding model with optional API Gateway support"""
+        # In demo mode, always return demo embedding model
+        if is_demo_mode():
+            return DemoEmbeddingModel(model_name)
+
         if model_name not in cls.AVAILABLE_MODELS:
             logger.warning(f"Model {model_name} not in available models list, attempting to load as local model")
             return SentenceTransformerModel(model_name)

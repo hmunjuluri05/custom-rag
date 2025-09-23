@@ -410,8 +410,8 @@ function displayDocuments(documents) {
 
     documents.forEach(doc => {
         const uploadDate = new Date(doc.timestamp).toLocaleDateString();
-        const fileIcon = getFileIcon(doc.document_type);
-        const fileSize = doc.file_size ? formatFileSize(doc.file_size) : 'Unknown';
+        const fileIcon = getFileIcon(doc.document_type || doc.type);
+        const fileSize = doc.file_size ? formatFileSize(doc.file_size) : (doc.size || 'Unknown');
 
         html += `
             <tr>
@@ -425,13 +425,13 @@ function displayDocuments(documents) {
                     <br><small class="text-muted">Uploaded: ${uploadDate}</small>
                 </td>
                 <td>
-                    <span class="badge bg-secondary">${doc.document_type.toUpperCase()}</span>
+                    <span class="badge bg-secondary">${(doc.document_type || doc.type || 'Unknown').toUpperCase()}</span>
                 </td>
                 <td>
                     <small class="text-muted">${fileSize}</small>
                 </td>
                 <td>
-                    <span class="badge bg-info">${doc.total_chunks || 0}</span>
+                    <span class="badge bg-info">${doc.total_chunks || doc.chunks || 0}</span>
                 </td>
                 <td class="file-actions">
                     <div class="btn-group btn-group-sm d-flex flex-wrap gap-1">
