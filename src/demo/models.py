@@ -154,7 +154,7 @@ DEMO_SOURCES = [
 class DemoLLMModel:
     """Demo LLM model that simulates OpenAI/Google responses"""
 
-    def __init__(self, model_name: str = "demo-gpt-4", **kwargs):
+    def __init__(self, model_name: str = "gpt-4", **kwargs):
         self.model_name = model_name
         self.response_delay = float(os.getenv('DEMO_RESPONSE_DELAY', 1))
         self.enable_sources = os.getenv('DEMO_ENABLE_SOURCES', 'true').lower() == 'true'
@@ -195,9 +195,9 @@ class DemoLLMModel:
     def get_model_info(self) -> Dict[str, Any]:
         """Return demo model information"""
         return {
-            "provider": "demo",
+            "provider": "openai",
             "model_name": self.model_name,
-            "description": "Demo LLM model for UI testing and demonstrations",
+            "description": "Demo LLM model simulating OpenAI",
             "cost": "Free (Demo Mode)",
             "status": "Demo Mode Active"
         }

@@ -250,15 +250,15 @@ class DemoRAGSystem:
     async def change_llm_model(self, provider: str, model_name: str = None, **kwargs) -> Dict[str, Any]:
         """Simulate changing LLM model"""
 
-        if provider == "demo" or is_demo_mode():
+        if is_demo_mode():
             # Just update the model name for demo
             old_model = self.llm_model.model_name
-            new_model = model_name or "demo-gpt-4"
+            new_model = model_name or "gpt-4"
             self.llm_model.model_name = new_model
 
             return {
                 "success": True,
-                "message": f"Demo LLM model changed from {old_model} to {new_model}",
+                "message": f"LLM model changed from {old_model} to {new_model}",
                 "old_model": old_model,
                 "new_model": new_model,
                 "demo_mode": True
@@ -287,20 +287,20 @@ class DemoRAGSystem:
         }
 
     def get_available_llms(self) -> Dict[str, Dict[str, Any]]:
-        """Get available demo LLM models"""
+        """Get available LLM models (delegates to real models for demo)"""
         return {
-            "demo": {
-                "demo-gpt-4": {
-                    "provider": "demo",
-                    "model_name": "demo-gpt-4",
-                    "description": "Demo GPT-4 model for testing",
+            "openai": {
+                "gpt-4": {
+                    "provider": "openai",
+                    "model_name": "gpt-4",
+                    "description": "GPT-4 - Most capable model",
                     "cost": "Free (Demo)",
                     "recommended": True
                 },
-                "demo-gpt-3.5": {
-                    "provider": "demo",
-                    "model_name": "demo-gpt-3.5",
-                    "description": "Demo GPT-3.5 model for testing",
+                "gpt-3.5-turbo": {
+                    "provider": "openai",
+                    "model_name": "gpt-3.5-turbo",
+                    "description": "GPT-3.5 Turbo - Fast and efficient",
                     "cost": "Free (Demo)",
                     "recommended": False
                 }
@@ -316,7 +316,7 @@ class DemoRAGSystem:
         """Change LLM model (demo version)"""
         try:
             old_model = self.llm_model.model_name
-            new_model = model_name or f"demo-{provider.value if hasattr(provider, 'value') else provider}"
+            new_model = model_name or "gpt-4"
             self.llm_model.model_name = new_model
             logger.info(f"Demo LLM changed from {old_model} to {new_model}")
             return True

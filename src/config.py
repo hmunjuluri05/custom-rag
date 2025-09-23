@@ -9,9 +9,9 @@ from src.demo.models import is_demo_mode
 load_dotenv()
 
 def get_default_llm_config() -> tuple[LLMProvider, str, Optional[str], Optional[str]]:
-    # In demo mode, return demo configuration
+    # In demo mode, return OpenAI configuration with demo defaults
     if is_demo_mode():
-        return LLMProvider.DEMO, "demo-gpt-4", None, None
+        return LLMProvider.OPENAI, "gpt-4", None, None
 
     provider_str = os.getenv('DEFAULT_LLM_PROVIDER', 'openai').lower()
     model_name = os.getenv('DEFAULT_LLM_MODEL', 'gpt-4')

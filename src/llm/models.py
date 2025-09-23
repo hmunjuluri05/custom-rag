@@ -12,7 +12,6 @@ class LLMProvider(Enum):
     """Available LLM providers"""
     OPENAI = "openai"
     GOOGLE = "google"
-    DEMO = "demo"
 
 class LLMModel(ABC):
     """Abstract base class for LLM models"""
