@@ -12,7 +12,7 @@ from pathlib import Path
 
 def setup_demo_environment():
     """Setup environment for demo mode"""
-    print("🚀 Setting up demo environment...")
+    print("Setting up demo environment...")
 
     # Copy demo env file to .env if it doesn't exist
     env_file = Path(".env")
@@ -27,9 +27,9 @@ def setup_demo_environment():
             with open(env_file, 'w') as f:
                 f.write(demo_content)
 
-            print("✅ Created .env file from .env.demo")
+            print("Created .env file from .env.demo")
         else:
-            print("✅ .env file already exists")
+            print(".env file already exists")
 
             # Check if demo mode is enabled
             with open(env_file, 'r') as f:
@@ -55,9 +55,9 @@ def setup_demo_environment():
                     with open(env_file, 'w') as f:
                         f.write('\n'.join(lines))
 
-                    print("✅ Enabled demo mode in .env file")
+                    print("Enabled demo mode in .env file")
     else:
-        print("⚠️  .env.demo not found, creating minimal demo configuration...")
+        print("Warning: .env.demo not found, creating minimal demo configuration...")
 
         demo_content = """# Demo Mode Configuration
 DEMO_MODE=true
@@ -70,23 +70,23 @@ DEMO_ENABLE_SOURCES=true
         with open(env_file, 'w') as f:
             f.write(demo_content)
 
-        print("✅ Created demo configuration")
+        print("Created demo configuration")
 
     # Set environment variable for this session
     os.environ['DEMO_MODE'] = 'true'
 
 def check_demo_requirements():
     """Check if demo mode can run"""
-    print("🔍 Checking demo requirements...")
+    print("Checking demo requirements...")
 
     requirements_met = True
 
     # Check Python version
     if sys.version_info < (3, 8):
-        print("❌ Python 3.8+ required")
+        print("ERROR: Python 3.8+ required")
         requirements_met = False
     else:
-        print(f"✅ Python {sys.version_info.major}.{sys.version_info.minor}")
+        print(f"Python {sys.version_info.major}.{sys.version_info.minor}")
 
     # Check required packages
     required_packages = ['fastapi', 'uvicorn', 'numpy']
@@ -95,43 +95,43 @@ def check_demo_requirements():
     for package in required_packages:
         try:
             __import__(package)
-            print(f"✅ {package}")
+            print(f"OK: {package}")
         except ImportError:
-            print(f"❌ {package} (missing)")
+            print(f"ERROR: {package} (missing)")
             missing_packages.append(package)
             requirements_met = False
 
     if missing_packages:
-        print(f"\n📦 Install missing packages:")
+        print(f"\nInstall missing packages:")
         print(f"pip install {' '.join(missing_packages)}")
 
     return requirements_met
 
 def start_demo_server():
     """Start the demo server"""
-    print("\n🎯 Starting demo server...")
+    print("\nStarting demo server...")
 
     try:
         # Import the main app
         from main import app
 
-        print("\n🌟 Demo Mode Active!")
+        print("\nDemo Mode Active!")
         print("="*50)
-        print("🎭 All AI responses are simulated")
-        print("📁 Document operations are mocked")
-        print("🔧 No external API keys required")
-        print("💻 Perfect for UI demonstrations")
+        print("All AI responses are simulated")
+        print("Document operations are mocked")
+        print("No external API keys required")
+        print("Perfect for UI demonstrations")
         print("="*50)
-        print("\n🌐 Server starting at: http://127.0.0.1:8000")
-        print("🏠 Main interface: http://127.0.0.1:8000")
-        print("⚙️  Admin panel: http://127.0.0.1:8000/upload")
-        print("\n💡 Try these demo features:")
+        print("\nServer starting at: http://127.0.0.1:8000")
+        print("Main interface: http://127.0.0.1:8000")
+        print("Admin panel: http://127.0.0.1:8000/upload")
+        print("\nTry these demo features:")
         print("• Upload documents (simulated)")
         print("• Ask questions in chat")
         print("• Use 'Summarize Documents' button")
         print("• Try 'Key Findings' analysis")
         print("• Browse document management")
-        print("\n🛑 Press Ctrl+C to stop the server")
+        print("\nPress Ctrl+C to stop the server")
         print("="*50)
 
         # Start the server
@@ -144,53 +144,53 @@ def start_demo_server():
         )
 
     except KeyboardInterrupt:
-        print("\n\n👋 Demo server stopped. Thanks for trying the demo!")
+        print("\n\nDemo server stopped. Thanks for trying the demo!")
     except Exception as e:
-        print(f"\n❌ Error starting demo server: {e}")
-        print("\n🔧 Troubleshooting:")
+        print(f"\nERROR starting demo server: {e}")
+        print("\nTroubleshooting:")
         print("1. Make sure all requirements are installed")
         print("2. Check that port 8000 is available")
         print("3. Try running: python main.py")
 
 def show_demo_help():
     """Show demo mode help"""
-    print("\n📚 Demo Mode Help")
+    print("\nDemo Mode Help")
     print("="*50)
-    print("\n🎯 What is Demo Mode?")
+    print("\nWhat is Demo Mode?")
     print("Demo mode runs the RAG system without requiring:")
     print("• OpenAI API keys")
     print("• Google API keys")
     print("• Model downloads")
     print("• Internet connection (for AI features)")
 
-    print("\n🎭 What's Simulated?")
+    print("\nWhat's Simulated?")
     print("• AI responses (realistic but fake)")
     print("• Document processing")
     print("• Embedding generation")
     print("• Source citations")
     print("• System statistics")
 
-    print("\n💻 Perfect For:")
+    print("\nPerfect For:")
     print("• UI demonstrations")
     print("• Feature showcasing")
     print("• Development testing")
     print("• Offline presentations")
 
-    print("\n🚀 Quick Start:")
+    print("\nQuick Start:")
     print("1. Run: python run_demo.py")
     print("2. Open: http://127.0.0.1:8000")
     print("3. Try uploading documents")
     print("4. Ask questions in chat")
     print("5. Explore admin features")
 
-    print("\n🔄 Switch to Production:")
+    print("\nSwitch to Production:")
     print("1. Set DEMO_MODE=false in .env")
     print("2. Add real API keys")
     print("3. Restart the application")
 
 def main():
     """Main demo startup function"""
-    print("🎭 RAG System Demo Mode")
+    print("RAG System Demo Mode")
     print("="*30)
 
     if len(sys.argv) > 1:
@@ -201,16 +201,16 @@ def main():
             setup_demo_environment()
             requirements_met = check_demo_requirements()
             if requirements_met:
-                print("\n✅ Demo mode ready!")
+                print("\nDemo mode ready!")
             else:
-                print("\n❌ Please install missing requirements")
+                print("\nERROR: Please install missing requirements")
             return
 
     # Setup and start demo
     setup_demo_environment()
 
     if not check_demo_requirements():
-        print("\n❌ Demo requirements not met. Install missing packages and try again.")
+        print("\nERROR: Demo requirements not met. Install missing packages and try again.")
         return
 
     start_demo_server()

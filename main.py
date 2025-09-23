@@ -14,7 +14,7 @@ from src.api.chat import ChatService
 
 # Import service modules
 from src.upload.file_service import FileUploadService
-from src.rag_system import RAGSystem
+from src.rag_system import create_rag_system
 from src.ui.upload_ui import UploadUI
 from src.ui.chat_ui import ChatUI
 
@@ -27,7 +27,7 @@ app = FastAPI(title="Knowledge Base Search System", version="2.0.0")
 
 # Initialize services (dependency injection)
 file_service = FileUploadService()
-rag_system = RAGSystem()
+rag_system = create_rag_system()
 chat_service = ChatService(rag_system)
 
 # Initialize UI components

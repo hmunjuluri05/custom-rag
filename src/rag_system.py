@@ -1,4 +1,5 @@
 import uuid
+import os
 from typing import List, Dict, Any, Optional
 import logging
 from datetime import datetime
@@ -9,6 +10,10 @@ from .llm.models import LLMService, LLMProvider
 from .config import get_default_llm_config
 
 logger = logging.getLogger(__name__)
+
+# Check if demo mode is enabled
+def is_demo_mode() -> bool:
+    return os.getenv('DEMO_MODE', 'false').lower() == 'true'
 
 class RAGSystem:
     """Complete RAG system combining document processing, embeddings, and retrieval"""
@@ -582,9 +587,15 @@ class RAGSystem:
             logger.error(f"Error changing embedding model: {str(e)}")
             return False
 
-    def get_llm_info(self) -> Dict[str, Any]:
-        """Get information about the current LLM"""
-        return self.llm_service.get_model_info()
+def create_rag_system(**kwargs) -> 'RAGSystem':
+    """Factory function to create appropriate RAG system based on mode"""
+    if is_demo_mode():
+        logger.info("Creating demo RAG system")
+        from .demo.rag_system import create_demo_rag_system
+        return create_demo_rag_system()
+    else:
+        logger.info("Creating production RAG system")
+        return RAGSystem(**kwargs)
 
     def change_llm(self, provider: LLMProvider, model_name: str = None, api_key: str = None, base_url: str = None) -> bool:
         """Change the LLM provider and model"""

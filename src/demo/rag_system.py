@@ -17,6 +17,7 @@ from .models import (
     create_demo_documents,
     get_demo_document_content
 )
+from .vector_store import DemoVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +27,58 @@ class DemoRAGSystem:
     def __init__(self):
         self.llm_model = DemoLLMModel()
         self.embedding_model = DemoEmbeddingModel()
+        self.vector_store = DemoVectorStore()
         self.demo_documents = create_demo_documents()
 
+        # Pre-populate with demo documents
+        self._initialize_demo_data()
+
         logger.info("Demo RAG system initialized")
+
+    def _initialize_demo_data(self):
+        """Initialize demo data in vector store"""
+        try:
+            # Add demo document chunks to vector store
+            for doc in self.demo_documents:
+                content_data = get_demo_document_content(doc["document_id"])
+                content = content_data.get("content", "Demo content")
+
+                # Split into chunks
+                sentences = content.split('. ')
+                chunk_size = 3
+
+                texts = []
+                metadatas = []
+                ids = []
+
+                for i in range(0, len(sentences), chunk_size):
+                    chunk_text = '. '.join(sentences[i:i + chunk_size])
+                    if chunk_text and not chunk_text.endswith('.'):
+                        chunk_text += '.'
+
+                    chunk_id = f"{doc['document_id']}_chunk_{i // chunk_size}"
+                    texts.append(chunk_text)
+                    metadatas.append({
+                        "document_id": doc["document_id"],
+                        "filename": doc["filename"],
+                        "chunk_index": i // chunk_size,
+                        "timestamp": doc["timestamp"],
+                        "document_type": doc["type"].lower()
+                    })
+                    ids.append(chunk_id)
+
+                # Add to vector store (synchronous call for initialization)
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(self.vector_store.add_documents(texts, metadatas, ids))
+                loop.close()
+
+            logger.info("Demo data initialized in vector store")
+
+        except Exception as e:
+            logger.warning(f"Could not initialize demo data: {e}")
+            # Continue without demo data - it's not critical
 
     async def query(self, query: str, document_filter: str = None) -> Dict[str, Any]:
         """Process a query and return demo response with sources"""

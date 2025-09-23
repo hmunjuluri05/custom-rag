@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 import aiofiles
 import logging
 from .document_processor import DocumentProcessor
+from ..demo.models import is_demo_mode
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,11 @@ class FileUploadService:
 
     async def save_uploaded_file(self, file: UploadFile) -> Path:
         """Save uploaded file to disk"""
+        # In demo mode, simulate file saving without actually saving
+        if is_demo_mode():
+            logger.info(f"Demo mode: Simulating file save for {file.filename}")
+            return Path(f"demo_uploads/{file.filename}")
+
         # Validate file extension
         file_extension = Path(file.filename).suffix.lower()
         if file_extension not in self.allowed_extensions:
@@ -54,6 +60,31 @@ class FileUploadService:
 
         for file in files:
             try:
+                # In demo mode, simulate file processing
+                if is_demo_mode():
+                    from ..demo.models import get_demo_document_content
+
+                    # Simulate processing delay
+                    import asyncio
+                    await asyncio.sleep(1)
+
+                    processed_files.append({
+                        "filename": file.filename,
+                        "file_path": f"demo_uploads/{file.filename}",
+                        "text_content": f"Demo content for {file.filename}. This is simulated document processing in demo mode.",
+                        "metadata": {
+                            "filename": file.filename,
+                            "file_extension": Path(file.filename).suffix.lower(),
+                            "file_size": 1024,  # Fake size
+                            "created_time": 1640995200,  # Demo timestamp
+                            "modified_time": 1640995200,
+                            "demo_mode": True
+                        },
+                        "status": "success",
+                        "demo_mode": True
+                    })
+                    continue
+
                 # Save file
                 file_path = await self.save_uploaded_file(file)
 
