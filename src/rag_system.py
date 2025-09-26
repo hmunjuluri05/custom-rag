@@ -6,21 +6,19 @@ from datetime import datetime
 from .embedding.vector_store import VectorStore
 from .embedding.chunking import ChunkerFactory, ChunkingConfig, ChunkingStrategy
 from .upload.document_processor import DocumentProcessor
-from .llm.models import LLMService, LLMProvider
+from .llm.models import LLMService
+from .config import LLMProvider
 from .config import get_default_llm_config
 
 logger = logging.getLogger(__name__)
 
-# Check if demo mode is enabled
-def is_demo_mode() -> bool:
-    return os.getenv('DEMO_MODE', 'false').lower() == 'true'
 
 class RAGSystem:
     """Complete RAG system combining document processing, embeddings, and retrieval"""
 
     def __init__(self,
                  collection_name: str = "documents",
-                 embedding_model: str = "all-mpnet-base-v2",
+                 embedding_model: str = None,
                  embedding_api_key: str = None,
                  embedding_base_url: str = None,
                  chunking_config: Optional[ChunkingConfig] = None,
@@ -588,14 +586,9 @@ class RAGSystem:
             return False
 
 def create_rag_system(**kwargs) -> 'RAGSystem':
-    """Factory function to create appropriate RAG system based on mode"""
-    if is_demo_mode():
-        logger.info("Creating demo RAG system")
-        from .demo.rag_system import create_demo_rag_system
-        return create_demo_rag_system()
-    else:
-        logger.info("Creating production RAG system")
-        return RAGSystem(**kwargs)
+    """Factory function to create RAG system"""
+    logger.info("Creating RAG system")
+    return RAGSystem(**kwargs)
 
     def change_llm(self, provider: LLMProvider, model_name: str = None, api_key: str = None, base_url: str = None) -> bool:
         """Change the LLM provider and model"""

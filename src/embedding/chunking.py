@@ -8,7 +8,6 @@ from enum import Enum
 from langchain_text_splitters import (
     CharacterTextSplitter,
     RecursiveCharacterTextSplitter,
-    SentenceTransformersTokenTextSplitter,
     TokenTextSplitter,
 )
 
@@ -48,9 +47,8 @@ class ChunkingConfig:
         # Token-based parameters
         model_name: str = "gpt-3.5-turbo",
         encoding_name: Optional[str] = None,
-        # SentenceTransformers token parameters
-        tokens_per_chunk: Optional[int] = None,
-        model_name_st: str = "all-MiniLM-L6-v2"
+        # Token-based chunking parameters
+        tokens_per_chunk: Optional[int] = None
     ):
         self.strategy = strategy
         self.chunk_size = chunk_size
@@ -69,9 +67,8 @@ class ChunkingConfig:
         self.model_name = model_name
         self.encoding_name = encoding_name
 
-        # SentenceTransformers token-based
+        # Token-based chunking
         self.tokens_per_chunk = tokens_per_chunk or chunk_size
-        self.model_name_st = model_name_st
 
 class BaseChunker(ABC):
     """Abstract base class for text chunkers"""
@@ -428,10 +425,11 @@ class SentenceTransformersTokenChunker(BaseChunker):
             return []
 
         try:
-            splitter = SentenceTransformersTokenTextSplitter(
-                chunk_overlap=self.config.chunk_overlap,
-                model_name=self.config.model_name_st,
-                tokens_per_chunk=self.config.tokens_per_chunk
+            # SentenceTransformers not available - fallback to tiktoken
+            from langchain_text_splitters import TokenTextSplitter
+            splitter = TokenTextSplitter(
+                chunk_size=self.config.tokens_per_chunk,
+                chunk_overlap=self.config.chunk_overlap
             )
 
             chunks = splitter.split_text(text)
@@ -445,7 +443,7 @@ class SentenceTransformersTokenChunker(BaseChunker):
                         "total_chunks": len(chunks),
                         "chunking_strategy": self.config.strategy.value,
                         "tokens_per_chunk": self.config.tokens_per_chunk,
-                        "model_name": self.config.model_name_st
+                        "model_name": "tiktoken"
                     }
                     formatted_chunks.append({
                         "text": chunk_text.strip(),

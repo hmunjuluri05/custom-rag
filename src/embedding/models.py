@@ -1,20 +1,12 @@
-from sentence_transformers import SentenceTransformer
 from typing import List, Dict, Any, Optional
 import numpy as np
 import logging
 from abc import ABC, abstractmethod
 import asyncio
-from enum import Enum
 import os
-from ..demo.models import is_demo_mode, DemoEmbeddingModel
 
 logger = logging.getLogger(__name__)
 
-class EmbeddingProvider(Enum):
-    """Enum for embedding providers"""
-    LOCAL = "local"
-    OPENAI = "openai"
-    GOOGLE = "google"
 
 class EmbeddingModel(ABC):
     """Abstract base class for embedding models"""
@@ -34,62 +26,21 @@ class EmbeddingModel(ABC):
         """Get the model name"""
         pass
 
-class SentenceTransformerModel(EmbeddingModel):
-    """Wrapper for SentenceTransformer models"""
-
-    def __init__(self, model_name: str = "all-mpnet-base-v2"):
-        self.model_name = model_name
-        logger.info(f"Loading SentenceTransformer model: {model_name}")
-
-        try:
-            self.model = SentenceTransformer(model_name)
-            logger.info(f"Successfully loaded model: {model_name}")
-        except Exception as e:
-            logger.error(f"Failed to load model {model_name}: {str(e)}")
-            raise Exception(f"Failed to load embedding model: {str(e)}")
-
-    def encode(self, texts: List[str]) -> np.ndarray:
-        """Encode texts into embeddings"""
-        try:
-            if not texts:
-                return np.array([])
-
-            embeddings = self.model.encode(texts, convert_to_numpy=True)
-            return embeddings
-
-        except Exception as e:
-            logger.error(f"Error encoding texts: {str(e)}")
-            raise Exception(f"Failed to encode texts: {str(e)}")
-
-    def encode_single(self, text: str) -> np.ndarray:
-        """Encode a single text into embedding"""
-        return self.encode([text])[0]
-
-    def get_dimension(self) -> int:
-        """Get the dimension of embeddings"""
-        return self.model.get_sentence_embedding_dimension()
-
-    def get_model_name(self) -> str:
-        """Get the model name"""
-        return self.model_name
-
-    def similarity(self, embeddings1: np.ndarray, embeddings2: np.ndarray) -> np.ndarray:
-        """Calculate cosine similarity between embeddings"""
-        try:
-            return self.model.similarity(embeddings1, embeddings2).numpy()
-        except Exception as e:
-            logger.error(f"Error calculating similarity: {str(e)}")
-            raise Exception(f"Failed to calculate similarity: {str(e)}")
 
 class OpenAIEmbeddingModel(EmbeddingModel):
     """OpenAI embedding model wrapper with API Gateway support"""
 
     def __init__(self, model_name: str = "text-embedding-3-large", api_key: str = None, base_url: str = None):
         self.model_name = model_name
-        # Try API key from parameter, then environment variables
-        self.api_key = api_key or os.getenv('OPENAI_API_KEY') or os.getenv('EMBEDDING_API_GATEWAY_KEY') or os.getenv('LLM_API_GATEWAY_KEY')
-        # Try base_url from parameter, then environment variables
-        self.base_url = base_url or os.getenv('EMBEDDING_API_GATEWAY_URL') or os.getenv('LLM_API_GATEWAY_URL')
+
+        # API key and base_url are mandatory
+        if not api_key:
+            raise ValueError("api_key is required")
+        if not base_url:
+            raise ValueError("base_url is required")
+
+        self.api_key = api_key
+        self.base_url = base_url
 
         logger.info(f"Initializing OpenAI embedding model: {model_name}")
 
@@ -169,10 +120,15 @@ class GoogleEmbeddingModel(EmbeddingModel):
 
     def __init__(self, model_name: str = "models/embedding-001", api_key: str = None, base_url: str = None):
         self.model_name = model_name
-        # Try API key from parameter, then environment variables
-        self.api_key = api_key or os.getenv('GOOGLE_API_KEY') or os.getenv('EMBEDDING_API_GATEWAY_KEY') or os.getenv('LLM_API_GATEWAY_KEY')
-        # Try base_url from parameter, then environment variables
-        self.base_url = base_url or os.getenv('EMBEDDING_API_GATEWAY_URL') or os.getenv('LLM_API_GATEWAY_URL')
+
+        # API key and base_url are mandatory
+        if not api_key:
+            raise ValueError("api_key is required")
+        if not base_url:
+            raise ValueError("base_url is required")
+
+        self.api_key = api_key
+        self.base_url = base_url
 
         logger.info(f"Initializing Google embedding model: {model_name}")
 
@@ -246,229 +202,59 @@ class GoogleEmbeddingModel(EmbeddingModel):
 class EmbeddingModelFactory:
     """Factory for creating embedding models"""
 
-    AVAILABLE_MODELS = {
-        # External API Models (OpenAI)
-        "text-embedding-3-large": {
-            "provider": EmbeddingProvider.OPENAI,
-            "dimension": 3072,
-            "description": "OpenAI's most capable embedding model",
-            "size": "API",
-            "category": "Premium External",
-            "recommended": True,
-            "requires_api_key": True,
-            "cost": "Paid"
-        },
-        "text-embedding-3-small": {
-            "provider": EmbeddingProvider.OPENAI,
-            "dimension": 1536,
-            "description": "OpenAI's fast and efficient embedding model",
-            "size": "API",
-            "category": "External",
-            "recommended": True,
-            "requires_api_key": True,
-            "cost": "Paid"
-        },
-        "text-embedding-ada-002": {
-            "provider": EmbeddingProvider.OPENAI,
-            "dimension": 1536,
-            "description": "OpenAI's previous generation embedding model (legacy)",
-            "size": "API",
-            "category": "External Legacy",
-            "recommended": False,
-            "requires_api_key": True,
-            "cost": "Paid"
-        },
-
-        # External API Models (Google)
-        "models/embedding-001": {
-            "provider": EmbeddingProvider.GOOGLE,
-            "dimension": 768,
-            "description": "Google's general-purpose embedding model",
-            "size": "API",
-            "category": "External",
-            "recommended": True,
-            "requires_api_key": True,
-            "cost": "Free/Paid"
-        },
-        "models/text-embedding-004": {
-            "provider": EmbeddingProvider.GOOGLE,
-            "dimension": 768,
-            "description": "Google's latest text embedding model",
-            "size": "API",
-            "category": "External",
-            "recommended": True,
-            "requires_api_key": True,
-            "cost": "Free/Paid"
-        },
-
-        # Local Models (SentenceTransformers)
-        "all-MiniLM-L6-v2": {
-            "provider": EmbeddingProvider.LOCAL,
-            "dimension": 384,
-            "description": "Fast and efficient model, good for general use",
-            "size": "Small (~80MB)",
-            "category": "General Purpose",
-            "recommended": True,
-            "requires_api_key": False,
-            "cost": "Free"
-        },
-        "all-mpnet-base-v2": {
-            "provider": EmbeddingProvider.LOCAL,
-            "dimension": 768,
-            "description": "High quality model with better accuracy",
-            "size": "Medium (~420MB)",
-            "category": "High Quality",
-            "recommended": True,
-            "requires_api_key": False,
-            "cost": "Free"
-        },
-        "sentence-transformers/all-MiniLM-L12-v2": {
-            "provider": EmbeddingProvider.LOCAL,
-            "dimension": 384,
-            "description": "Balanced model between speed and accuracy",
-            "size": "Medium (~130MB)",
-            "category": "Balanced",
-            "recommended": True,
-            "requires_api_key": False,
-            "cost": "Free"
-        },
-
-        # State-of-the-art Local Models
-        "sentence-transformers/all-mpnet-base-v2": {
-            "provider": EmbeddingProvider.LOCAL,
-            "dimension": 768,
-            "description": "One of the best performing general-purpose models",
-            "size": "Medium (~420MB)",
-            "category": "Premium",
-            "recommended": True,
-            "requires_api_key": False,
-            "cost": "Free"
-        },
-        "sentence-transformers/multi-qa-mpnet-base-dot-v1": {
-            "provider": EmbeddingProvider.LOCAL,
-            "dimension": 768,
-            "description": "Optimized for question-answering tasks",
-            "size": "Medium (~420MB)",
-            "category": "Q&A Specialized",
-            "recommended": True,
-            "requires_api_key": False,
-            "cost": "Free"
-        },
-        "sentence-transformers/all-roberta-large-v1": {
-            "provider": EmbeddingProvider.LOCAL,
-            "dimension": 1024,
-            "description": "Large high-performance model (slower but very accurate)",
-            "size": "Large (~1.3GB)",
-            "category": "High Performance",
-            "recommended": False,
-            "requires_api_key": False,
-            "cost": "Free"
-        },
-
-        # Multilingual Local Models
-        "paraphrase-multilingual-MiniLM-L12-v2": {
-            "provider": EmbeddingProvider.LOCAL,
-            "dimension": 384,
-            "description": "Multilingual model supporting 50+ languages",
-            "size": "Medium (~420MB)",
-            "category": "Multilingual",
-            "recommended": True,
-            "requires_api_key": False,
-            "cost": "Free"
-        },
-        "sentence-transformers/paraphrase-multilingual-mpnet-base-v2": {
-            "provider": EmbeddingProvider.LOCAL,
-            "dimension": 768,
-            "description": "High-quality multilingual model",
-            "size": "Large (~970MB)",
-            "category": "Multilingual Premium",
-            "recommended": True,
-            "requires_api_key": False,
-            "cost": "Free"
-        },
-
-        # Domain-Specific Local Models
-        "sentence-transformers/multi-qa-MiniLM-L6-cos-v1": {
-            "provider": EmbeddingProvider.LOCAL,
-            "dimension": 384,
-            "description": "Fast model optimized for question-answering",
-            "size": "Small (~80MB)",
-            "category": "Q&A Optimized",
-            "recommended": True,
-            "requires_api_key": False,
-            "cost": "Free"
-        },
-        "sentence-transformers/msmarco-distilbert-base-v4": {
-            "provider": EmbeddingProvider.LOCAL,
-            "dimension": 768,
-            "description": "Optimized for passage retrieval and search",
-            "size": "Medium (~250MB)",
-            "category": "Search Optimized",
-            "recommended": True,
-            "requires_api_key": False,
-            "cost": "Free"
-        },
-
-        # Legacy/Alternative Local Models
-        "all-distilroberta-v1": {
-            "provider": EmbeddingProvider.LOCAL,
-            "dimension": 768,
-            "description": "Distilled RoBERTa model with good performance",
-            "size": "Medium (~290MB)",
-            "category": "Alternative",
-            "recommended": False,
-            "requires_api_key": False,
-            "cost": "Free"
-        }
-    }
-
     @classmethod
-    def create_model(cls, model_name: str = "all-mpnet-base-v2", api_key: str = None, base_url: str = None) -> EmbeddingModel:
+    def create_model(cls, model_name: str = None, api_key: str = None, base_url: str = None) -> EmbeddingModel:
         """Create an embedding model with optional API Gateway support"""
-        # In demo mode, always return demo embedding model
-        if is_demo_mode():
-            return DemoEmbeddingModel(model_name)
+        from ..config.model_config import get_model_config, EmbeddingProvider
+        config = get_model_config()
 
-        if model_name not in cls.AVAILABLE_MODELS:
-            logger.warning(f"Model {model_name} not in available models list, attempting to load as local model")
-            return SentenceTransformerModel(model_name)
+        # Use default model if none specified
+        if model_name is None:
+            model_name = config.get_default_embedding_model()
 
-        model_info = cls.AVAILABLE_MODELS[model_name]
-        provider = model_info.get("provider", EmbeddingProvider.LOCAL)
+        # Get model info from YAML config
+        model_info = config.get_embedding_model_info(model_name)
+        if not model_info:
+            raise ValueError(f"Unknown embedding model: {model_name}. Available models: {list(config.get_embedding_models().keys())}")
 
-        if provider == EmbeddingProvider.LOCAL:
-            return SentenceTransformerModel(model_name)
-        elif provider == EmbeddingProvider.OPENAI:
-            # For OpenAI models, api_key is optional if using environment variables or API gateway
+        provider = config.get_embedding_provider(model_name)
+        if not provider:
+            raise ValueError(f"Invalid provider for model {model_name}")
+
+        if provider.value == "openai":
             return OpenAIEmbeddingModel(model_name, api_key, base_url)
-        elif provider == EmbeddingProvider.GOOGLE:
-            # For Google models, api_key is optional if using environment variables or API gateway
+        elif provider.value == "google":
             return GoogleEmbeddingModel(model_name, api_key, base_url)
         else:
-            raise ValueError(f"Unknown provider {provider} for model {model_name}")
+            raise ValueError(f"Unsupported provider {provider} for model {model_name}")
 
     @classmethod
     def get_available_models(cls) -> Dict[str, Dict[str, Any]]:
         """Get information about available models"""
-        return cls.AVAILABLE_MODELS
+        from ..config.model_config import get_model_config
+        config = get_model_config()
+        return config.get_embedding_models()
 
     @classmethod
     def get_recommended_model(cls, use_case: str = "general") -> str:
         """Get recommended model for specific use case"""
-        recommendations = {
-            "general": "all-mpnet-base-v2",
-            "high_quality": "all-mpnet-base-v2",
-            "multilingual": "paraphrase-multilingual-MiniLM-L12-v2",
-            "fast": "all-MiniLM-L6-v2",
-            "accurate": "all-mpnet-base-v2"
-        }
+        from ..config.model_config import get_model_config
+        config = get_model_config()
 
-        return recommendations.get(use_case, "all-mpnet-base-v2")
+        # Find recommended models from config
+        models = config.get_embedding_models()
+        recommended_models = [name for name, info in models.items() if info.get('recommended', False)]
+
+        if recommended_models:
+            return recommended_models[0]  # Return first recommended model
+
+        # Fallback to default
+        return config.get_default_embedding_model()
 
 class EmbeddingService:
     """Service for managing embeddings and similarity search"""
 
-    def __init__(self, model_name: str = "all-mpnet-base-v2", api_key: str = None, base_url: str = None):
+    def __init__(self, model_name: str = None, api_key: str = None, base_url: str = None):
         self.model = EmbeddingModelFactory.create_model(model_name, api_key, base_url)
         self.model_name = model_name
         self.api_key = api_key
@@ -501,8 +287,9 @@ class EmbeddingService:
             # Encode candidates
             candidate_embeddings = self.model.encode(candidate_texts)
 
-            # Calculate similarities
-            similarities = self.model.similarity(
+            # Calculate cosine similarities
+            from sklearn.metrics.pairwise import cosine_similarity
+            similarities = cosine_similarity(
                 query_embedding.reshape(1, -1),
                 candidate_embeddings
             )[0]
@@ -529,10 +316,8 @@ class EmbeddingService:
         return {
             "model_name": self.model.get_model_name(),
             "dimension": self.model.get_dimension(),
-            "model_info": EmbeddingModelFactory.AVAILABLE_MODELS.get(
-                self.model_name,
-                {"description": "Custom model", "size": "Unknown"}
-            )
+            "model_info": self._get_model_info() or
+                        {"description": "Custom model", "size": "Unknown"}
         }
 
     def change_model(self, new_model_name: str, api_key: str = None, base_url: str = None) -> bool:
@@ -549,3 +334,12 @@ class EmbeddingService:
         except Exception as e:
             logger.error(f"Failed to change model to {new_model_name}: {str(e)}")
             return False
+
+    def _get_model_info(self) -> Dict[str, Any]:
+        """Get model info from config"""
+        try:
+            from ..config.model_config import get_model_config
+            config = get_model_config()
+            return config.get_embedding_model_info(self.model_name)
+        except Exception:
+            return None

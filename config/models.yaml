@@ -1,0 +1,92 @@
+# Model Configuration File
+# This file defines all available embedding and LLM models
+# Only API-based models are supported (no local/open source models)
+
+embedding_models:
+  # OpenAI Embedding Models
+  text-embedding-3-large:
+    provider: openai
+    dimension: 3072
+    description: "OpenAI's most capable embedding model"
+    category: "Premium External"
+    recommended: true
+    requires_api_key: true
+    cost: "Paid"
+
+  text-embedding-3-small:
+    provider: openai
+    dimension: 1536
+    description: "OpenAI's fast and efficient embedding model"
+    category: "External"
+    recommended: true
+    requires_api_key: true
+    cost: "Paid"
+
+  text-embedding-ada-002:
+    provider: openai
+    dimension: 1536
+    description: "OpenAI's previous generation embedding model (legacy)"
+    category: "External Legacy"
+    recommended: false
+    requires_api_key: true
+    cost: "Paid"
+
+  # Google Embedding Models
+  models/embedding-001:
+    provider: google
+    dimension: 768
+    description: "Google's general-purpose embedding model"
+    category: "External"
+    recommended: true
+    requires_api_key: true
+    cost: "Free/Paid"
+
+  models/text-embedding-004:
+    provider: google
+    dimension: 768
+    description: "Google's latest text embedding model"
+    category: "External"
+    recommended: true
+    requires_api_key: true
+    cost: "Free/Paid"
+
+llm_models:
+  # OpenAI LLM Models
+  openai:
+    description: "OpenAI GPT models for intelligent response generation (supports API Gateway via base_url)"
+    requires_api_key: true
+    supports_gateway: true
+    models:
+      - gpt-3.5-turbo
+      - gpt-4
+      - gpt-4-turbo-preview
+      - gpt-4o
+      - gpt-4o-mini
+    default_model: gpt-4
+
+  # Google LLM Models
+  google:
+    description: "Google Gemini models for intelligent response generation (supports API Gateway via base_url)"
+    requires_api_key: true
+    supports_gateway: true
+    models:
+      - gemini-pro
+      - gemini-pro-vision
+      - gemini-1.5-pro
+      - gemini-1.5-flash
+    default_model: gemini-pro
+
+# Default configurations
+defaults:
+  embedding_model: text-embedding-3-small
+  llm_provider: openai
+  llm_model: gpt-4
+
+# Configuration validation
+validation:
+  embedding_providers:
+    - openai
+    - google
+  llm_providers:
+    - openai
+    - google

@@ -5,7 +5,6 @@ import pandas as pd
 from pathlib import Path
 from typing import Dict, Any
 import logging
-from ..demo.models import is_demo_mode
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +22,6 @@ class DocumentProcessor:
 
     def extract_text(self, file_path: Path) -> str:
         """Extract text content from a document file"""
-        # In demo mode, return demo content
-        if is_demo_mode():
-            return f"Demo text content extracted from {file_path.name}. This is simulated content for demonstration purposes. The document would normally contain the actual extracted text from the uploaded file."
 
         file_extension = file_path.suffix.lower()
 
@@ -160,17 +156,6 @@ class DocumentProcessor:
 
     def get_document_metadata(self, file_path: Path) -> Dict[str, Any]:
         """Extract metadata from document"""
-        # In demo mode, return demo metadata
-        if is_demo_mode():
-            return {
-                "filename": file_path.name,
-                "file_extension": file_path.suffix.lower(),
-                "file_size": 1024,  # Demo size
-                "created_time": 1640995200,  # Demo timestamp
-                "modified_time": 1640995200,
-                "demo_mode": True,
-                "page_count": 5  # Demo page count for PDFs
-            }
 
         stat_info = file_path.stat()
 

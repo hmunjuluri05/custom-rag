@@ -4,14 +4,9 @@ import logging
 import os
 import asyncio
 import aiohttp
-from enum import Enum
 
 logger = logging.getLogger(__name__)
 
-class LLMProvider(Enum):
-    """Available LLM providers"""
-    OPENAI = "openai"
-    GOOGLE = "google"
 
 class LLMModel(ABC):
     """Abstract base class for LLM models"""
@@ -32,35 +27,33 @@ class OpenAIModel(LLMModel):
 
     def __init__(self, model_name: str = "gpt-4", api_key: Optional[str] = None, base_url: Optional[str] = None):
         self.model_name = model_name
-        # Try API key from parameter, then environment variable
-        self.api_key = api_key or os.getenv('OPENAI_API_KEY') or os.getenv('LLM_API_GATEWAY_KEY')
-        # Try base_url from parameter, then environment variable
-        self.base_url = base_url or os.getenv('LLM_API_GATEWAY_URL')
+
+        # API key and base_url are mandatory
+        if not api_key:
+            raise ValueError("api_key is required")
+        if not base_url:
+            raise ValueError("base_url is required")
+
+        self.api_key = api_key
+        self.base_url = base_url
         self._client = None
 
-        if self.api_key:
-            try:
-                from openai import AsyncOpenAI
-                client_kwargs = {"api_key": self.api_key}
+        try:
+            from openai import AsyncOpenAI
+            client_kwargs = {"api_key": self.api_key}
 
-                if self.base_url:
-                    # Using API Gateway
-                    client_kwargs["base_url"] = self.base_url
-                    logger.info(f"Initialized OpenAI client with model: {model_name} via API Gateway: {self.base_url}")
-                else:
-                    # Using direct OpenAI API
-                    logger.info(f"Initialized OpenAI client with model: {model_name} via OpenAI API")
+            # Using API Gateway
+            client_kwargs["base_url"] = self.base_url
+            logger.info(f"Initialized OpenAI client with model: {model_name} via API Gateway: {self.base_url}")
 
-                self._client = AsyncOpenAI(**client_kwargs)
+            self._client = AsyncOpenAI(**client_kwargs)
 
-            except ImportError:
-                logger.error("OpenAI library not installed. Run: pip install openai")
-                raise
-            except Exception as e:
-                logger.error(f"Failed to initialize OpenAI client: {str(e)}")
-                raise
-        else:
-            logger.warning("No API key provided. Set OPENAI_API_KEY or LLM_API_GATEWAY_KEY environment variable.")
+        except ImportError:
+            logger.error("OpenAI library not installed. Run: pip install openai")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to initialize OpenAI client: {str(e)}")
+            raise
 
     async def generate_response(self, context: str, query: str) -> str:
         """Generate response using OpenAI GPT with retry logic"""
@@ -198,37 +191,23 @@ class GoogleModel(LLMModel):
 
     def __init__(self, model_name: str = "gemini-pro", api_key: Optional[str] = None, base_url: Optional[str] = None):
         self.model_name = model_name
-        # Try API key from parameter, then environment variable
-        self.api_key = api_key or os.getenv('GOOGLE_API_KEY') or os.getenv('LLM_API_GATEWAY_KEY')
-        # Try base_url from parameter, then environment variable
-        self.base_url = base_url or os.getenv('LLM_API_GATEWAY_URL')
-        self._model = None
-        self._use_gateway = bool(self.base_url)
 
-        if self.api_key:
-            if self._use_gateway:
-                # For API Gateway, we'll use aiohttp directly since google-generativeai doesn't support custom base URLs
-                logger.info(f"Initialized Google Gemini client with model: {model_name} via API Gateway: {self.base_url}")
-            else:
-                # Direct Google API
-                try:
-                    import google.generativeai as genai
-                    genai.configure(api_key=self.api_key)
-                    self._model = genai.GenerativeModel(model_name)
-                    logger.info(f"Initialized Google Gemini client with model: {model_name} via Google API")
-                except ImportError:
-                    logger.error("Google Generative AI library not installed. Run: pip install google-generativeai")
-                    raise
-                except Exception as e:
-                    logger.error(f"Failed to initialize Google Gemini client: {str(e)}")
-                    raise
-        else:
-            logger.warning("No API key provided. Set GOOGLE_API_KEY or LLM_API_GATEWAY_KEY environment variable.")
+        # API key and base_url are mandatory
+        if not api_key:
+            raise ValueError("api_key is required")
+        if not base_url:
+            raise ValueError("base_url is required")
+
+        self.api_key = api_key
+        self.base_url = base_url
+        self._model = None
+        self._use_gateway = True  # Always using gateway since base_url is mandatory
+
+        # For API Gateway, we'll use aiohttp directly since google-generativeai doesn't support custom base URLs
+        logger.info(f"Initialized Google Gemini client with model: {model_name} via API Gateway: {self.base_url}")
 
     async def generate_response(self, context: str, query: str) -> str:
         """Generate response using Google Gemini"""
-        if not self.api_key:
-            raise ValueError("Google Gemini client not initialized. Please provide API key.")
 
         try:
             prompt = f"""You are a helpful assistant that answers questions based on provided context from documents.
@@ -312,46 +291,57 @@ Please answer the question based only on the provided context."""
 class LLMFactory:
     """Factory for creating LLM models"""
 
-    AVAILABLE_MODELS = {
-        LLMProvider.OPENAI: {
-            "models": ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo-preview", "gpt-4o"],
-            "description": "OpenAI GPT models for intelligent response generation (supports API Gateway via base_url)",
-            "requires_api_key": True,
-            "supports_gateway": True
-        },
-        LLMProvider.GOOGLE: {
-            "models": ["gemini-pro", "gemini-pro-vision", "gemini-1.5-pro"],
-            "description": "Google Gemini models for intelligent response generation (supports API Gateway via base_url)",
-            "requires_api_key": True,
-            "supports_gateway": True
-        }
-    }
 
     @classmethod
-    def create_model(cls, provider: LLMProvider, model_name: str = None, api_key: str = None, base_url: str = None) -> LLMModel:
+    def create_model(cls, provider = None, model_name: str = None, api_key: str = None, base_url: str = None) -> LLMModel:
         """Create an LLM model instance with optional API Gateway support via base_url"""
+        from ..config.model_config import get_model_config, LLMProvider
+        config = get_model_config()
 
-        if provider == LLMProvider.OPENAI:
-            model_name = model_name or "gpt-4"
+        # Use defaults if not specified
+        if provider is None:
+            provider_str = config.get_default_llm_provider()
+            provider = config.get_llm_provider_enum(provider_str)
+
+        if model_name is None:
+            if provider.value == "openai":
+                provider_info = config.get_llm_provider_info('openai')
+                model_name = provider_info.get('default_model', 'gpt-4') if provider_info else 'gpt-4'
+            elif provider.value == "google":
+                provider_info = config.get_llm_provider_info('google')
+                model_name = provider_info.get('default_model', 'gemini-pro') if provider_info else 'gemini-pro'
+            else:
+                model_name = config.get_default_llm_model()
+
+        # Validate provider and model
+        provider_str = provider.value
+        if not config.is_valid_llm_provider(provider_str):
+            raise ValueError(f"Unsupported LLM provider: {provider}")
+
+        if not config.is_valid_llm_model(provider_str, model_name):
+            available_models = config.get_llm_provider_info(provider_str).get('models', [])
+            raise ValueError(f"Model {model_name} not available for provider {provider}. Available models: {available_models}")
+
+        if provider.value == "openai":
             return OpenAIModel(model_name=model_name, api_key=api_key, base_url=base_url)
-
-        elif provider == LLMProvider.GOOGLE:
-            model_name = model_name or "gemini-pro"
+        elif provider.value == "google":
             return GoogleModel(model_name=model_name, api_key=api_key, base_url=base_url)
-
         else:
             raise ValueError(f"Unsupported LLM provider: {provider}")
 
     @classmethod
     def get_available_models(cls) -> Dict[str, Dict[str, Any]]:
         """Get information about available models"""
-        return cls.AVAILABLE_MODELS
+        from ..config.model_config import get_model_config
+        config = get_model_config()
+        return config.get_llm_models()
 
 class LLMService:
     """Service for managing LLM operations"""
 
-    def __init__(self, provider: LLMProvider = LLMProvider.OPENAI, model_name: str = None, api_key: str = None, base_url: str = None):
-        self.provider = provider
+    def __init__(self, provider = None, model_name: str = None, api_key: str = None, base_url: str = None):
+        from ..config.model_config import LLMProvider
+        self.provider = provider or LLMProvider.OPENAI
         self.model_name = model_name
         self.api_key = api_key
         self.base_url = base_url
@@ -365,7 +355,7 @@ class LLMService:
         """Get current model information"""
         return self.llm_model.get_model_info()
 
-    def change_model(self, provider: LLMProvider, model_name: str = None, api_key: str = None, base_url: str = None) -> bool:
+    def change_model(self, provider, model_name: str = None, api_key: str = None, base_url: str = None) -> bool:
         """Change the LLM model"""
         try:
             new_model = LLMFactory.create_model(provider, model_name, api_key, base_url)

@@ -15,7 +15,7 @@ class VectorStore:
     def __init__(self,
                  collection_name: str = "documents",
                  persist_directory: str = "./chroma_db",
-                 embedding_model: str = "all-mpnet-base-v2",
+                 embedding_model: str = None,
                  embedding_api_key: str = None,
                  embedding_base_url: str = None):
 

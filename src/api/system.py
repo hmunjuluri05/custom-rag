@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import logging
 from enum import Enum
-from src.llm.models import LLMProvider
+from src.config.model_config import LLMProvider
 
 logger = logging.getLogger(__name__)
 
