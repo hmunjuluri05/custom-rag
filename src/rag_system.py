@@ -605,6 +605,16 @@ class RAGSystem:
 
 
 def create_rag_system(**kwargs) -> 'RAGSystem':
-    """Factory function to create RAG system"""
+    """Factory function to create RAG system with default configuration"""
     logger.info("Creating RAG system")
+
+    # Provide defaults if not specified in kwargs
+    if 'api_key' not in kwargs:
+        from .config.model_config import get_kong_config
+        kwargs['api_key'] = get_kong_config()
+
+    if 'base_url' not in kwargs:
+        # base_url will be derived by the factories, so no need to set it here
+        pass
+
     return RAGSystem(**kwargs)
