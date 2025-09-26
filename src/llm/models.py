@@ -40,10 +40,7 @@ class OpenAIModel(LLMModel):
 
         try:
             from openai import AsyncOpenAI
-            client_kwargs = {"api_key": self.api_key}
-
-            # Using API Gateway
-            client_kwargs["base_url"] = self.base_url
+            client_kwargs = {"api_key": self.api_key, "base_url": self.base_url}
             logger.info(f"Initialized OpenAI client with model: {model_name} via API Gateway: {self.base_url}")
 
             self._client = AsyncOpenAI(**client_kwargs)
@@ -295,7 +292,7 @@ class LLMFactory:
     @classmethod
     def create_model(cls, provider = None, model_name: str = None, api_key: str = None, base_url: str = None) -> LLMModel:
         """Create an LLM model instance with optional API Gateway support via base_url"""
-        from ..config.model_config import get_model_config, LLMProvider
+        from ..config.model_config import get_model_config, LLMProvider, get_kong_config, derive_llm_url
         config = get_model_config()
 
         # Use defaults if not specified
@@ -312,6 +309,13 @@ class LLMFactory:
                 model_name = provider_info.get('default_model', 'gemini-pro') if provider_info else 'gemini-pro'
             else:
                 model_name = config.get_default_llm_model()
+
+        # Get defaults for api_key and base_url if not provided
+        if api_key is None:
+            api_key = get_kong_config()
+
+        if base_url is None:
+            base_url = derive_llm_url(provider.value)
 
         # Validate provider and model
         provider_str = provider.value

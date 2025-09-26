@@ -16,12 +16,12 @@ class VectorStore:
                  collection_name: str = "documents",
                  persist_directory: str = "./chroma_db",
                  embedding_model: str = None,
-                 embedding_api_key: str = None,
-                 embedding_base_url: str = None):
+                 api_key: str = None,
+                 base_url: str = None):
 
         self.collection_name = collection_name
         self.persist_directory = persist_directory
-        self.embedding_service = EmbeddingService(embedding_model, embedding_api_key, embedding_base_url)
+        self.embedding_service = EmbeddingService(embedding_model, api_key, base_url)
 
         # Initialize ChromaDB
         self.chroma_client = chromadb.PersistentClient(

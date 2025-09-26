@@ -205,12 +205,19 @@ class EmbeddingModelFactory:
     @classmethod
     def create_model(cls, model_name: str = None, api_key: str = None, base_url: str = None) -> EmbeddingModel:
         """Create an embedding model with optional API Gateway support"""
-        from ..config.model_config import get_model_config, EmbeddingProvider
+        from ..config.model_config import get_model_config, EmbeddingProvider, get_kong_config, derive_embedding_url
         config = get_model_config()
 
         # Use default model if none specified
         if model_name is None:
             model_name = config.get_default_embedding_model()
+
+        # Get defaults for api_key and base_url if not provided
+        if api_key is None:
+            api_key = get_kong_config()
+
+        if base_url is None:
+            base_url = derive_embedding_url(model_name)
 
         # Get model info from YAML config
         model_info = config.get_embedding_model_info(model_name)

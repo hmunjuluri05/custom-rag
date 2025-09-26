@@ -19,13 +19,11 @@ class RAGSystem:
     def __init__(self,
                  collection_name: str = "documents",
                  embedding_model: str = None,
-                 embedding_api_key: str = None,
-                 embedding_base_url: str = None,
+                 api_key: str = None,
+                 base_url: str = None,
                  chunking_config: Optional[ChunkingConfig] = None,
                  llm_provider: LLMProvider = None,
-                 llm_model: str = None,
-                 llm_api_key: str = None,
-                 llm_base_url: str = None):
+                 llm_model: str = None):
 
         # Initialize chunking configuration
         self.chunking_config = chunking_config or ChunkingConfig()
@@ -35,8 +33,8 @@ class RAGSystem:
         self.vector_store = VectorStore(
             collection_name=collection_name,
             embedding_model=embedding_model,
-            embedding_api_key=embedding_api_key,
-            embedding_base_url=embedding_base_url
+            api_key=api_key,
+            base_url=base_url
         )
 
         # Initialize LLM service with default configuration if not provided
@@ -44,14 +42,14 @@ class RAGSystem:
             default_provider, default_model, default_api_key, default_base_url = get_default_llm_config()
             llm_provider = default_provider
             llm_model = llm_model or default_model
-            llm_api_key = llm_api_key or default_api_key
-            llm_base_url = llm_base_url or default_base_url
+            api_key = api_key or default_api_key
+            base_url = base_url or default_base_url
 
         self.llm_service = LLMService(
             provider=llm_provider,
             model_name=llm_model,
-            api_key=llm_api_key,
-            base_url=llm_base_url
+            api_key=api_key,
+            base_url=base_url
         )
 
         logger.info(f"RAG system initialized with embedding model: {embedding_model}, "
@@ -496,7 +494,7 @@ class RAGSystem:
         """Get information about the current embedding model"""
         return self.vector_store.get_model_info()
 
-    async def change_embedding_model(self, new_model_name: str, embedding_api_key: str = None, embedding_base_url: str = None, force_reprocess: bool = False) -> Dict[str, Any]:
+    async def change_embedding_model(self, new_model_name: str, api_key: str = None, base_url: str = None, force_reprocess: bool = False) -> Dict[str, Any]:
         """Change the embedding model (requires reprocessing documents)"""
         try:
             # Get current stats before change
@@ -527,7 +525,7 @@ class RAGSystem:
                 }
 
             # Change the model
-            success = self.vector_store.change_embedding_model(new_model_name, embedding_api_key, embedding_base_url)
+            success = self.vector_store.change_embedding_model(new_model_name, api_key, base_url)
 
             if not success:
                 return {
@@ -572,10 +570,10 @@ class RAGSystem:
                 "current_model": self.get_current_embedding_model()
             }
 
-    def change_embedding_model_sync(self, new_model_name: str, embedding_api_key: str = None, embedding_base_url: str = None) -> bool:
+    def change_embedding_model_sync(self, new_model_name: str, api_key: str = None, base_url: str = None) -> bool:
         """Synchronous version - Change the embedding model (requires reprocessing documents)"""
         try:
-            success = self.vector_store.change_embedding_model(new_model_name, embedding_api_key, embedding_base_url)
+            success = self.vector_store.change_embedding_model(new_model_name, api_key, base_url)
             if success:
                 logger.warning(f"Embedding model changed to {new_model_name}. "
                              f"Existing documents should be reprocessed for optimal results.")
@@ -600,6 +598,10 @@ class RAGSystem:
         """Get available LLM models"""
         from .llm.models import LLMFactory
         return LLMFactory.get_available_models()
+
+    def get_llm_info(self) -> Dict[str, Any]:
+        """Get current LLM model information"""
+        return self.llm_service.get_model_info()
 
 
 def create_rag_system(**kwargs) -> 'RAGSystem':
