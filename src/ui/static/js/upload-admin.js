@@ -1398,26 +1398,54 @@ async function loadCurrentEmbeddingSettings() {
             const data = await response.json();
             const currentModel = data.current_model;
 
-            if (currentModel && availableEmbeddingModels[currentModel]) {
-                const modelInfo = availableEmbeddingModels[currentModel];
-                const provider = modelInfo.provider.toString().toLowerCase();
+            if (currentModel) {
+                // First, try to find the model in available models
+                let modelInfo = availableEmbeddingModels[currentModel];
+                let provider = 'openai'; // default fallback
+
+                if (modelInfo) {
+                    provider = modelInfo.provider.toString().toLowerCase();
+                } else {
+                    // If model not in available list, try to determine provider from model name
+                    if (currentModel.includes('google') || currentModel.startsWith('models/')) {
+                        provider = 'google';
+                    } else {
+                        provider = 'openai';
+                    }
+                }
 
                 // Set provider dropdown
                 const providerDropdown = document.getElementById('editEmbeddingProvider');
                 if (providerDropdown) {
                     providerDropdown.value = provider;
                     updateEditEmbeddingModels();
-                }
 
-                // Set model dropdown
-                const modelDropdown = document.getElementById('editEmbeddingModel');
-                if (modelDropdown) {
-                    modelDropdown.value = currentModel;
+                    // Wait a short moment for the dropdown to be populated, then set the model
+                    setTimeout(() => {
+                        const modelDropdown = document.getElementById('editEmbeddingModel');
+                        if (modelDropdown) {
+                            modelDropdown.value = currentModel;
+                            console.log(`Pre-selected current model: ${currentModel}`);
+                        }
+                    }, 100);
+                }
+            } else {
+                // No current model, just set default provider and let user choose
+                const providerDropdown = document.getElementById('editEmbeddingProvider');
+                if (providerDropdown) {
+                    providerDropdown.value = 'openai';
+                    updateEditEmbeddingModels();
                 }
             }
         }
     } catch (error) {
         console.error('Error loading current embedding settings:', error);
+        // Fallback: set default provider
+        const providerDropdown = document.getElementById('editEmbeddingProvider');
+        if (providerDropdown) {
+            providerDropdown.value = 'openai';
+            updateEditEmbeddingModels();
+        }
     }
 }
 
