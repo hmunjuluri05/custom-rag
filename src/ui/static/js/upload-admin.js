@@ -358,8 +358,8 @@ function updateStatsDisplay(data) {
     const embeddingInfo = ragStats.embedding_model;
     if (embeddingInfo) {
         const modelName = embeddingInfo.model_name || 'Unknown';
-        const provider = embeddingInfo.provider || 'local';
-        const displayText = provider === 'local' ? modelName : `${provider.toUpperCase()}: ${modelName}`;
+        const provider = embeddingInfo.provider || 'openai';
+        const displayText = provider === 'openai' || provider === 'google' ? `${provider.toUpperCase()}: ${modelName}` : modelName;
         document.getElementById('embeddingModelDisplay').textContent = displayText;
     } else {
         document.getElementById('embeddingModelDisplay').textContent = 'Unknown';
@@ -808,7 +808,6 @@ function updateEmbeddingProviderSettings() {
         ([modelName, modelInfo]) => {
             const provider = modelInfo.provider.toString().toLowerCase();
             return provider === selectedProvider ||
-                   (selectedProvider === 'local' && provider === 'local') ||
                    (selectedProvider === 'openai' && provider.includes('openai')) ||
                    (selectedProvider === 'google' && provider.includes('google'));
         }
@@ -845,12 +844,6 @@ function loadFallbackEmbeddingModels() {
         'models/embedding-001': { provider: 'google', dimension: 768, category: 'General', requires_api_key: true, cost: 'Free/Paid' },
         'models/text-embedding-004': { provider: 'google', dimension: 768, category: 'Latest', requires_api_key: true, cost: 'Free/Paid' },
 
-        // Local models
-        'all-MiniLM-L6-v2': { provider: 'local', dimension: 384, category: 'Fast', requires_api_key: false, cost: 'Free' },
-        'all-mpnet-base-v2': { provider: 'local', dimension: 768, category: 'High Quality', requires_api_key: false, cost: 'Free' },
-        'sentence-transformers/all-MiniLM-L12-v2': { provider: 'local', dimension: 384, category: 'Balanced', requires_api_key: false, cost: 'Free' },
-        'sentence-transformers/all-mpnet-base-v2': { provider: 'local', dimension: 768, category: 'Premium', requires_api_key: false, cost: 'Free' },
-        'sentence-transformers/multi-qa-mpnet-base-dot-v1': { provider: 'local', dimension: 768, category: 'Q&A', requires_api_key: false, cost: 'Free' }
     };
 
     // Initialize the provider dropdown and load models for default provider
@@ -913,7 +906,7 @@ async function loadCurrentSettings() {
         // Fallback to showing the default model
         const providerDropdown = document.getElementById('embeddingProvider');
         if (providerDropdown) {
-            providerDropdown.value = 'local';
+            providerDropdown.value = 'openai';
             updateEmbeddingProviderSettings();
         }
     }
@@ -1444,7 +1437,6 @@ function updateEditEmbeddingModels() {
         ([modelName, modelInfo]) => {
             const provider = modelInfo.provider.toString().toLowerCase();
             return provider === selectedProvider ||
-                   (selectedProvider === 'local' && provider === 'local') ||
                    (selectedProvider === 'openai' && provider.includes('openai')) ||
                    (selectedProvider === 'google' && provider.includes('google'));
         }
@@ -1609,8 +1601,8 @@ function updateStatsDisplayFromModal(newModel) {
     const embeddingModelDisplay = document.getElementById('embeddingModelDisplay');
     if (embeddingModelDisplay) {
         const modelInfo = availableEmbeddingModels[newModel];
-        const provider = modelInfo?.provider || 'local';
-        const displayText = provider === 'local' ? newModel : `${provider.toUpperCase()}: ${newModel}`;
+        const provider = modelInfo?.provider || 'openai';
+        const displayText = provider === 'openai' || provider === 'google' ? `${provider.toUpperCase()}: ${newModel}` : newModel;
         embeddingModelDisplay.textContent = displayText;
     }
 }
