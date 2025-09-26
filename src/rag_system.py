@@ -585,11 +585,6 @@ class RAGSystem:
             logger.error(f"Error changing embedding model: {str(e)}")
             return False
 
-def create_rag_system(**kwargs) -> 'RAGSystem':
-    """Factory function to create RAG system"""
-    logger.info("Creating RAG system")
-    return RAGSystem(**kwargs)
-
     def change_llm(self, provider: LLMProvider, model_name: str = None, api_key: str = None, base_url: str = None) -> bool:
         """Change the LLM provider and model"""
         try:
@@ -605,3 +600,9 @@ def create_rag_system(**kwargs) -> 'RAGSystem':
         """Get available LLM models"""
         from .llm.models import LLMFactory
         return LLMFactory.get_available_models()
+
+
+def create_rag_system(**kwargs) -> 'RAGSystem':
+    """Factory function to create RAG system"""
+    logger.info("Creating RAG system")
+    return RAGSystem(**kwargs)
