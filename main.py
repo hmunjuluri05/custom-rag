@@ -5,6 +5,30 @@ from fastapi.templating import Jinja2Templates
 import uvicorn
 import logging
 
+# Load environment variables first
+from dotenv import load_dotenv
+import os
+load_dotenv()
+
+# Validate required environment variables
+def validate_environment():
+    """Validate that required environment variables are set"""
+    kong_api_key = os.getenv('KONG_API_KEY')
+
+    if not kong_api_key:
+        raise ValueError("KONG_API_KEY environment variable is not set. Please check your .env file.")
+
+    if kong_api_key == 'your_kong_api_key_here':
+        raise ValueError(
+            "KONG_API_KEY is still set to the placeholder value. "
+            "Please edit your .env file and set KONG_API_KEY to your actual Kong API key."
+        )
+
+    logging.info(f"Kong API key loaded successfully (ends with: ...{kong_api_key[-4:]})")
+
+# Validate environment before proceeding
+validate_environment()
+
 # Import API modules
 from src.api.documents import create_documents_router
 from src.api.upload import create_upload_router
