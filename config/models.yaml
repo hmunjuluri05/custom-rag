@@ -4,20 +4,20 @@
 
 embedding_models:
   # OpenAI Embedding Models
-  text-embedding-3-large:
-    provider: openai
-    dimension: 3072
-    description: "OpenAI's most capable embedding model"
-    category: "Premium External"
-    recommended: true
-    requires_api_key: true
-    cost: "Paid"
-
   text-embedding-3-small:
     provider: openai
     dimension: 1536
     description: "OpenAI's fast and efficient embedding model"
     category: "External"
+    recommended: true
+    requires_api_key: true
+    cost: "Paid"
+
+  text-embedding-3-large:
+    provider: openai
+    dimension: 3072
+    description: "OpenAI's most capable embedding model"
+    category: "Premium External"
     recommended: true
     requires_api_key: true
     cost: "Paid"
