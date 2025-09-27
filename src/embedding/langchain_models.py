@@ -187,7 +187,7 @@ class LangChainEmbeddingModelFactory:
     @classmethod
     def create_model(cls, model_name: str = None, api_key: str = None, base_url: str = None) -> LangChainEmbeddingModel:
         """Create a LangChain embedding model with Kong API Gateway support"""
-        from ..config.model_config import get_model_config, EmbeddingProvider, get_kong_config, derive_embedding_url
+        from config.model_config import get_model_config, EmbeddingProvider, get_kong_config, derive_embedding_url
         config = get_model_config()
 
         # Use default model if none specified
@@ -220,14 +220,14 @@ class LangChainEmbeddingModelFactory:
     @classmethod
     def get_available_models(cls) -> Dict[str, Dict[str, Any]]:
         """Get information about available models"""
-        from ..config.model_config import get_model_config
+        from config.model_config import get_model_config
         config = get_model_config()
         return config.get_embedding_models()
 
     @classmethod
     def get_recommended_model(cls, use_case: str = "general") -> str:
         """Get recommended model for specific use case"""
-        from ..config.model_config import get_model_config
+        from config.model_config import get_model_config
         config = get_model_config()
 
         # Find recommended models from config
@@ -341,7 +341,7 @@ class LangChainEmbeddingService:
     def _get_model_info(self) -> Dict[str, Any]:
         """Get model info from config"""
         try:
-            from ..config.model_config import get_model_config
+            from config.model_config import get_model_config
             config = get_model_config()
             return config.get_embedding_model_info(self.model_name)
         except Exception:
