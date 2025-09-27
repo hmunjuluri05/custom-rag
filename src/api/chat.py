@@ -24,3 +24,18 @@ class ChatService:
                 "query": query
             }
 
+    async def process_query_stream(self, query: str):
+        """Process chat query using RAG system with streaming LLM response"""
+        try:
+            # Use streaming LLM-powered query method
+            async for chunk in self.rag_system.query_with_llm_stream(query, top_k=3):
+                yield chunk
+
+        except Exception as e:
+            logger.error(f"Error processing streaming chat query: {str(e)}")
+            yield {
+                "type": "error",
+                "content": f"Sorry, I encountered an error while processing your question: {str(e)}",
+                "query": query
+            }
+

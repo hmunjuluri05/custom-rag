@@ -3,12 +3,12 @@ import os
 from typing import List, Dict, Any, Optional
 import logging
 from datetime import datetime
-from .embedding.vector_store import VectorStore
-from .embedding.chunking import ChunkerFactory, ChunkingConfig, ChunkingStrategy
-from .upload.document_processor import DocumentProcessor
-from .llm.models import LLMService
-from .config import LLMProvider
-from .config import get_default_llm_config
+from embedding.vector_store import VectorStore
+from embedding.chunking import ChunkerFactory, ChunkingConfig, ChunkingStrategy
+from upload.document_processor import DocumentProcessor
+from llm.models import LLMService
+from config import LLMProvider
+from config import get_default_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,9 @@ class RAGSystem:
                  base_url: str = None,
                  chunking_config: Optional[ChunkingConfig] = None,
                  llm_provider: LLMProvider = None,
-                 llm_model: str = None):
+                 llm_model: str = None,
+                 use_langchain: bool = True,
+                 use_langchain_vectorstore: bool = False):
 
         # Initialize chunking configuration
         self.chunking_config = chunking_config or ChunkingConfig()
@@ -34,7 +36,9 @@ class RAGSystem:
             collection_name=collection_name,
             embedding_model=embedding_model,
             api_key=api_key,
-            base_url=base_url
+            base_url=base_url,
+            use_langchain=use_langchain,
+            use_langchain_vectorstore=use_langchain_vectorstore
         )
 
         # Initialize LLM service with default configuration if not provided
@@ -45,12 +49,35 @@ class RAGSystem:
             api_key = api_key or default_api_key
             base_url = base_url or default_base_url
 
-        self.llm_service = LLMService(
-            provider=llm_provider,
-            model_name=llm_model,
-            api_key=api_key,
-            base_url=base_url
-        )
+        # Choose between LangChain and custom implementation
+        if use_langchain:
+            from llm.langchain_models import LangChainLLMService
+            self.llm_service = LangChainLLMService(
+                provider=llm_provider,
+                model_name=llm_model,
+                api_key=api_key,
+                base_url=base_url
+            )
+            logger.info("Using LangChain LLM implementation")
+        else:
+            from llm.models import LLMService
+            self.llm_service = LLMService(
+                provider=llm_provider,
+                model_name=llm_model,
+                api_key=api_key,
+                base_url=base_url
+            )
+            logger.info("Using custom LLM implementation")
+
+        # Initialize agent system for advanced workflows
+        self.agent_system = None
+        if use_langchain:
+            try:
+                from agents import MultiAgentRAGSystem
+                self.agent_system = MultiAgentRAGSystem(self, self.llm_service)
+                logger.info("LangChain agent system initialized for advanced workflows")
+            except ImportError as e:
+                logger.warning(f"Could not initialize agent system: {e}")
 
         logger.info(f"RAG system initialized with embedding model: {embedding_model}, "
                    f"chunking: {self.chunking_config.strategy.value}, "
@@ -208,6 +235,74 @@ class RAGSystem:
                 "response": f"Error generating response: {str(e)}",
                 "sources": [],
                 "query": query_text
+            }
+
+    async def query_with_llm_stream(self, query_text: str, top_k: int = 5, document_filter: Optional[str] = None):
+        """Query the RAG system and generate streaming response using LLM"""
+        try:
+            # Get relevant documents
+            results = await self.query(query_text, top_k, document_filter)
+
+            # Prepare source information first
+            document_sources = {}
+            context_parts = []
+
+            if results:
+                for result in results:
+                    context_parts.append(f"From {result['filename']}: {result['content']}")
+
+                    doc_id = result["document_id"]
+                    relevance_score = result.get("relevance_score", 0)
+
+                    if doc_id not in document_sources:
+                        document_sources[doc_id] = {
+                            "document_id": doc_id,
+                            "filename": result["filename"],
+                            "relevance_score": relevance_score,
+                            "source_info": result.get("source_info", {}),
+                            "content_preview": result["content"][:200] + "..." if len(result["content"]) > 200 else result["content"],
+                            "chunk_count": 1
+                        }
+                    else:
+                        document_sources[doc_id]["chunk_count"] += 1
+
+                # Convert to list and sort by relevance score
+                sources = list(document_sources.values())
+                sources.sort(key=lambda x: x["relevance_score"], reverse=True)
+                context = "\n\n".join(context_parts)
+            else:
+                sources = []
+                context = ""
+
+            # Yield sources information first
+            yield {
+                "type": "sources",
+                "content": sources,
+                "query": query_text
+            }
+
+            # Stream the response using LLM
+            if hasattr(self.llm_service, 'generate_response_stream') and context:
+                async for chunk in self.llm_service.generate_response_stream(context, query_text):
+                    yield {
+                        "type": "response_chunk",
+                        "content": chunk
+                    }
+            else:
+                # Fallback to non-streaming
+                response = await self.llm_service.generate_response(context, query_text)
+                yield {
+                    "type": "response",
+                    "content": response
+                }
+
+            logger.info(f"Generated streaming LLM response for query: '{query_text}'")
+
+        except Exception as e:
+            logger.error(f"Error in query_with_llm_stream: {str(e)}")
+            yield {
+                "type": "error",
+                "content": f"Error generating response: {str(e)}"
             }
 
     async def list_documents(self) -> List[Dict[str, Any]]:
@@ -596,25 +691,103 @@ class RAGSystem:
 
     def get_available_llms(self) -> Dict[str, Dict[str, Any]]:
         """Get available LLM models"""
-        from .llm.models import LLMFactory
+        from llm.models import LLMFactory
         return LLMFactory.get_available_models()
 
     def get_llm_info(self) -> Dict[str, Any]:
         """Get current LLM model information"""
         return self.llm_service.get_model_info()
 
+    async def query_with_agent(self, query_text: str, agent_type: str = "general") -> Dict[str, Any]:
+        """Query using LangChain agents for advanced reasoning"""
+        if not self.agent_system:
+            return {
+                "response": "Agent system not available. Ensure use_langchain=True when creating the RAG system.",
+                "agent_type": agent_type,
+                "query": query_text,
+                "fallback": True
+            }
+
+        try:
+            result = await self.agent_system.route_query(query_text, agent_type)
+            logger.info(f"Agent query completed for: '{query_text}'")
+            return result
+
+        except Exception as e:
+            logger.error(f"Error in agent query: {str(e)}")
+            return {
+                "response": f"Agent error: {str(e)}. Falling back to standard RAG.",
+                "agent_type": agent_type,
+                "query": query_text,
+                "fallback": True
+            }
+
+    async def query_with_agent_stream(self, query_text: str, agent_type: str = "general"):
+        """Stream agent response for real-time reasoning"""
+        if not self.agent_system:
+            yield {
+                "type": "error",
+                "content": "Agent system not available. Ensure use_langchain=True when creating the RAG system.",
+                "agent_type": agent_type
+            }
+            return
+
+        try:
+            async for chunk in self.agent_system.route_query_stream(query_text, agent_type):
+                yield chunk
+
+            logger.info(f"Agent streaming query completed for: '{query_text}'")
+
+        except Exception as e:
+            logger.error(f"Error in agent streaming query: {str(e)}")
+            yield {
+                "type": "error",
+                "content": f"Agent streaming error: {str(e)}",
+                "agent_type": agent_type
+            }
+
+    def get_agent_info(self) -> Dict[str, Any]:
+        """Get information about the agent system"""
+        if not self.agent_system:
+            return {"error": "Agent system not available"}
+
+        return self.agent_system.get_system_info()
+
 
 def create_rag_system(**kwargs) -> 'RAGSystem':
-    """Factory function to create RAG system with default configuration"""
-    logger.info("Creating RAG system")
+    """
+    Factory function to create RAG system with LangChain as the default configuration.
+
+    For maximum performance and features, use LangChain implementations:
+    - use_langchain=True (default): Uses LangChain for LLM and embeddings
+    - use_langchain_vectorstore=True: Uses LangChain-compatible vector store
+
+    Legacy mode (not recommended for new development):
+    - use_langchain=False: Uses deprecated custom implementations
+    """
+    logger.info("Creating RAG system with LangChain integration")
 
     # Provide defaults if not specified in kwargs
     if 'api_key' not in kwargs:
-        from .config.model_config import get_kong_config
+        from config.model_config import get_kong_config
         kwargs['api_key'] = get_kong_config()
 
     if 'base_url' not in kwargs:
         # base_url will be derived by the factories, so no need to set it here
         pass
+
+    # Use LangChain by default unless explicitly disabled
+    if 'use_langchain' not in kwargs:
+        kwargs['use_langchain'] = True
+
+    # Warn if legacy mode is explicitly requested
+    if kwargs.get('use_langchain') is False:
+        import warnings
+        warnings.warn(
+            "Legacy mode (use_langchain=False) is deprecated and not recommended for new development. "
+            "Consider migrating to LangChain implementations for better features and performance.",
+            DeprecationWarning,
+            stacklevel=2
+        )
 
     return RAGSystem(**kwargs)

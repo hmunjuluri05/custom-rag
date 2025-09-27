@@ -748,16 +748,9 @@ async function loadAvailableEmbeddingModels() {
     try {
         console.log('Attempting to load embedding models from API...');
 
-        // Try the embedding models endpoint first
-        let response = await fetch('/api/embedding/models');
-        console.log('First API call status:', response.status);
-
-        if (response.status === 404) {
-            console.log('First endpoint failed, trying system prefix...');
-            // Try system prefix
-            response = await fetch('/api/system/embedding/models');
-            console.log('Second API call status:', response.status);
-        }
+        // Use the correct system embedding models endpoint
+        let response = await fetch('/api/system/embedding/models');
+        console.log('API call status:', response.status);
 
         if (!response.ok) {
             throw new Error('API endpoint not found, using fallback');

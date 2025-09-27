@@ -1,3 +1,9 @@
+"""
+DEPRECATED: This module contains legacy LLM implementations.
+Use src.llm.langchain_models instead for new development.
+"""
+
+import warnings
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 import logging
@@ -6,6 +12,13 @@ import asyncio
 import aiohttp
 
 logger = logging.getLogger(__name__)
+
+# Issue deprecation warning
+warnings.warn(
+    "src.llm.models is deprecated. Use src.llm.langchain_models for new development.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 
 class LLMModel(ABC):

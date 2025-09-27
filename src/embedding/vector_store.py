@@ -10,18 +10,49 @@ from .models import EmbeddingService
 logger = logging.getLogger(__name__)
 
 class VectorStore:
-    """Vector database wrapper using ChromaDB"""
+    """Vector database wrapper using ChromaDB with optional LangChain integration"""
 
     def __init__(self,
                  collection_name: str = "documents",
                  persist_directory: str = "./chroma_db",
                  embedding_model: str = None,
                  api_key: str = None,
-                 base_url: str = None):
+                 base_url: str = None,
+                 use_langchain: bool = True,
+                 use_langchain_vectorstore: bool = False):
 
         self.collection_name = collection_name
         self.persist_directory = persist_directory
-        self.embedding_service = EmbeddingService(embedding_model, api_key, base_url)
+        self.use_langchain_vectorstore = use_langchain_vectorstore
+
+        # Choose between LangChain and custom embedding implementation
+        if use_langchain:
+            from .langchain_models import LangChainEmbeddingService
+            self.embedding_service = LangChainEmbeddingService(embedding_model, api_key, base_url)
+            logger.info("Using LangChain embedding implementation")
+        else:
+            from .models import EmbeddingService
+            self.embedding_service = EmbeddingService(embedding_model, api_key, base_url)
+            logger.info("Using custom embedding implementation")
+
+        # Choose vector store implementation
+        if use_langchain_vectorstore:
+            # Use LangChain-compatible vector store
+            from .langchain_vectorstore import LangChainChromaVectorStore, LangChainChromaEmbeddingWrapper
+            from .langchain_models import LangChainEmbeddingModelFactory
+
+            # Create LangChain embedding function
+            langchain_embedding_model = LangChainEmbeddingModelFactory.create_model(embedding_model, api_key, base_url)
+            self.langchain_embedding = LangChainChromaEmbeddingWrapper(langchain_embedding_model)
+
+            self.langchain_vectorstore = LangChainChromaVectorStore(
+                embedding_function=self.langchain_embedding,
+                collection_name=collection_name,
+                persist_directory=persist_directory
+            )
+            logger.info("Using LangChain vector store implementation")
+        else:
+            self.langchain_vectorstore = None
 
         # Initialize ChromaDB
         self.chroma_client = chromadb.PersistentClient(
@@ -59,8 +90,8 @@ class VectorStore:
             if ids is None:
                 ids = [str(uuid.uuid4()) for _ in texts]
 
-            # Generate embeddings
-            embeddings = self.embedding_service.encode_texts(texts)
+            # Generate embeddings (handle both sync and async)
+            embeddings = await self.embedding_service.encode_texts(texts)
 
             # Convert numpy arrays to lists for ChromaDB
             embeddings_list = [emb.tolist() for emb in embeddings]
@@ -87,7 +118,8 @@ class VectorStore:
         """Search for similar documents"""
         try:
             # Generate query embedding
-            query_embedding = self.embedding_service.model.encode([query_text])[0].tolist()
+            query_embeddings = await self.embedding_service.encode_texts([query_text])
+            query_embedding = query_embeddings[0].tolist()
 
             # Search in ChromaDB
             search_kwargs = {
