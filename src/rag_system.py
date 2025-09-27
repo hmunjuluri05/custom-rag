@@ -3,12 +3,12 @@ import os
 from typing import List, Dict, Any, Optional
 import logging
 from datetime import datetime
-from embedding.vector_store import VectorStore
-from embedding.chunking import ChunkerFactory, ChunkingConfig, ChunkingStrategy
-from upload.document_processor import DocumentProcessor
-from llm.models import LLMService
-from config import LLMProvider
-from config import get_default_llm_config
+from .embedding.vector_store import VectorStore
+from .embedding.chunking import ChunkerFactory, ChunkingConfig, ChunkingStrategy
+from .upload.document_processor import DocumentProcessor
+from .llm.models import LLMService
+from .config import LLMProvider
+from .config import get_default_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class RAGSystem:
 
         # Choose between LangChain and custom implementation
         if use_langchain:
-            from llm.langchain_models import LangChainLLMService
+            from .llm.langchain_models import LangChainLLMService
             self.llm_service = LangChainLLMService(
                 provider=llm_provider,
                 model_name=llm_model,
@@ -60,7 +60,7 @@ class RAGSystem:
             )
             logger.info("Using LangChain LLM implementation")
         else:
-            from llm.models import LLMService
+            from .llm.models import LLMService
             self.llm_service = LLMService(
                 provider=llm_provider,
                 model_name=llm_model,
@@ -73,7 +73,7 @@ class RAGSystem:
         self.agent_system = None
         if use_langchain:
             try:
-                from agents import MultiAgentRAGSystem
+                from .agents import MultiAgentRAGSystem
                 self.agent_system = MultiAgentRAGSystem(self, self.llm_service)
                 logger.info("LangChain agent system initialized for advanced workflows")
             except ImportError as e:
@@ -691,7 +691,7 @@ class RAGSystem:
 
     def get_available_llms(self) -> Dict[str, Dict[str, Any]]:
         """Get available LLM models"""
-        from llm.models import LLMFactory
+        from .llm.models import LLMFactory
         return LLMFactory.get_available_models()
 
     def get_llm_info(self) -> Dict[str, Any]:
@@ -769,7 +769,7 @@ def create_rag_system(**kwargs) -> 'RAGSystem':
 
     # Provide defaults if not specified in kwargs
     if 'api_key' not in kwargs:
-        from config.model_config import get_kong_config
+        from .config.model_config import get_kong_config
         kwargs['api_key'] = get_kong_config()
 
     if 'base_url' not in kwargs:

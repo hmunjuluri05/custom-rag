@@ -324,7 +324,7 @@ class LangChainLLMFactory:
     @classmethod
     def create_model(cls, provider = None, model_name: str = None, api_key: str = None, base_url: str = None) -> LangChainLLMModel:
         """Create a LangChain LLM model instance with Kong API Gateway support"""
-        from config.model_config import get_model_config, LLMProvider, get_kong_config, derive_llm_url
+        from ..config.model_config import get_model_config, LLMProvider, get_kong_config, derive_llm_url
         config = get_model_config()
 
         # Use defaults if not specified
@@ -368,7 +368,7 @@ class LangChainLLMFactory:
     @classmethod
     def get_available_models(cls) -> Dict[str, Dict[str, Any]]:
         """Get information about available models"""
-        from config.model_config import get_model_config
+        from ..config.model_config import get_model_config
         config = get_model_config()
         return config.get_llm_models()
 
@@ -377,7 +377,7 @@ class LangChainLLMService:
     """Service for managing LangChain LLM operations"""
 
     def __init__(self, provider = None, model_name: str = None, api_key: str = None, base_url: str = None, enable_callbacks: bool = True):
-        from config.model_config import LLMProvider
+        from ..config.model_config import LLMProvider
         self.provider = provider or LLMProvider.OPENAI
         self.model_name = model_name
         self.api_key = api_key
