@@ -24,7 +24,6 @@ class RAGSystem:
                  chunking_config: Optional[ChunkingConfig] = None,
                  llm_provider: LLMProvider = None,
                  llm_model: str = None,
-                 use_langchain: bool = True,
                  use_langchain_vectorstore: bool = False):
 
         # Initialize chunking configuration
@@ -37,7 +36,6 @@ class RAGSystem:
             embedding_model=embedding_model,
             api_key=api_key,
             base_url=base_url,
-            use_langchain=use_langchain,
             use_langchain_vectorstore=use_langchain_vectorstore
         )
 
@@ -49,35 +47,23 @@ class RAGSystem:
             api_key = api_key or default_api_key
             base_url = base_url or default_base_url
 
-        # Choose between LangChain and custom implementation
-        if use_langchain:
-            from .llm.langchain_models import LangChainLLMService
-            self.llm_service = LangChainLLMService(
-                provider=llm_provider,
-                model_name=llm_model,
-                api_key=api_key,
-                base_url=base_url
-            )
-            logger.info("Using LangChain LLM implementation")
-        else:
-            from .llm.models import LLMService
-            self.llm_service = LLMService(
-                provider=llm_provider,
-                model_name=llm_model,
-                api_key=api_key,
-                base_url=base_url
-            )
-            logger.info("Using custom LLM implementation")
+        # Initialize modern LLM service
+        self.llm_service = LLMService(
+            provider=llm_provider,
+            model_name=llm_model,
+            api_key=api_key,
+            base_url=base_url
+        )
+        logger.info("Using modern LLM implementation")
 
         # Initialize agent system for advanced workflows
         self.agent_system = None
-        if use_langchain:
-            try:
-                from .agents import MultiAgentRAGSystem
-                self.agent_system = MultiAgentRAGSystem(self, self.llm_service)
-                logger.info("LangChain agent system initialized for advanced workflows")
-            except ImportError as e:
-                logger.warning(f"Could not initialize agent system: {e}")
+        try:
+            from .agents import MultiAgentRAGSystem
+            self.agent_system = MultiAgentRAGSystem(self, self.llm_service)
+            logger.info("Agent system initialized for advanced workflows")
+        except ImportError as e:
+            logger.warning(f"Could not initialize agent system: {e}")
 
         logger.info(f"RAG system initialized with embedding model: {embedding_model}, "
                    f"chunking: {self.chunking_config.strategy.value}, "
@@ -366,7 +352,7 @@ class RAGSystem:
                 logger.warning(f"No file_path found for document {document_id}")
 
             # Delete from vector store using correct ChromaDB filter syntax
-            success = await self.vector_store.delete_by_filter({"document_id": {"$eq": document_id}})
+            success = await self.vector_store.delete_by_filter({"document_id": document_id})
 
             # If vector deletion was successful and we have a file path, delete the file
             if success and file_path:
@@ -460,7 +446,7 @@ class RAGSystem:
         try:
             # Get chunks from vector store using correct ChromaDB filter syntax
             chunks = await self.vector_store.get_documents(
-                where_filter={"document_id": {"$eq": document_id}}
+                where_filter={"document_id": document_id}
             )
 
             # Sort by chunk index
@@ -497,9 +483,10 @@ class RAGSystem:
 
                 if results["metadatas"]:
                     for metadata in results["metadatas"]:
-                        doc_id = metadata.get("document_id")
-                        if doc_id:
-                            unique_doc_ids.add(doc_id)
+                        if metadata:  # Add null check
+                            doc_id = metadata.get("document_id")
+                            if doc_id:
+                                unique_doc_ids.add(doc_id)
 
                 unique_documents_count = len(unique_doc_ids)
             except Exception as e:
@@ -691,8 +678,12 @@ class RAGSystem:
 
     def get_available_llms(self) -> Dict[str, Dict[str, Any]]:
         """Get available LLM models"""
-        from .llm.models import LLMFactory
-        return LLMFactory.get_available_models()
+        try:
+            from .llm.models import LLMFactory
+            return LLMFactory.get_available_models()
+        except Exception as e:
+            logger.warning(f"Could not retrieve available LLM models: {e}")
+            return {"error": "Model information not available"}
 
     def get_llm_info(self) -> Dict[str, Any]:
         """Get current LLM model information"""
@@ -756,16 +747,16 @@ class RAGSystem:
 
 def create_rag_system(**kwargs) -> 'RAGSystem':
     """
-    Factory function to create RAG system with LangChain as the default configuration.
+    Factory function to create a modern RAG system with advanced AI capabilities.
 
-    For maximum performance and features, use LangChain implementations:
-    - use_langchain=True (default): Uses LangChain for LLM and embeddings
-    - use_langchain_vectorstore=True: Uses LangChain-compatible vector store
-
-    Legacy mode (not recommended for new development):
-    - use_langchain=False: Uses deprecated custom implementations
+    Features:
+    - Modern embedding models with enterprise API gateway support
+    - Streaming LLM responses with comprehensive monitoring
+    - Advanced agent workflows for multi-step reasoning
+    - Vector store abstractions for optimal performance
+    - use_langchain_vectorstore=True: Enables advanced vector operations
     """
-    logger.info("Creating RAG system with LangChain integration")
+    logger.info("Creating modern RAG system with advanced AI capabilities")
 
     # Provide defaults if not specified in kwargs
     if 'api_key' not in kwargs:
@@ -773,21 +764,7 @@ def create_rag_system(**kwargs) -> 'RAGSystem':
         kwargs['api_key'] = get_kong_config()
 
     if 'base_url' not in kwargs:
-        # base_url will be derived by the factories, so no need to set it here
+        # base_url will be derived by the factories automatically
         pass
-
-    # Use LangChain by default unless explicitly disabled
-    if 'use_langchain' not in kwargs:
-        kwargs['use_langchain'] = True
-
-    # Warn if legacy mode is explicitly requested
-    if kwargs.get('use_langchain') is False:
-        import warnings
-        warnings.warn(
-            "Legacy mode (use_langchain=False) is deprecated and not recommended for new development. "
-            "Consider migrating to LangChain implementations for better features and performance.",
-            DeprecationWarning,
-            stacklevel=2
-        )
 
     return RAGSystem(**kwargs)

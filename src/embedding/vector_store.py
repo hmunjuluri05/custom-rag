@@ -18,32 +18,25 @@ class VectorStore:
                  embedding_model: str = None,
                  api_key: str = None,
                  base_url: str = None,
-                 use_langchain: bool = True,
                  use_langchain_vectorstore: bool = False):
 
         self.collection_name = collection_name
         self.persist_directory = persist_directory
         self.use_langchain_vectorstore = use_langchain_vectorstore
 
-        # Choose between LangChain and custom embedding implementation
-        if use_langchain:
-            from .langchain_models import LangChainEmbeddingService
-            self.embedding_service = LangChainEmbeddingService(embedding_model, api_key, base_url)
-            logger.info("Using LangChain embedding implementation")
-        else:
-            from .models import EmbeddingService
-            self.embedding_service = EmbeddingService(embedding_model, api_key, base_url)
-            logger.info("Using custom embedding implementation")
+        # Use modern embedding implementation
+        self.embedding_service = EmbeddingService(embedding_model, api_key, base_url)
+        logger.info("Using modern embedding implementation")
 
         # Choose vector store implementation
         if use_langchain_vectorstore:
-            # Use LangChain-compatible vector store
+            # Use modern vector store abstraction
             from .langchain_vectorstore import LangChainChromaVectorStore, LangChainChromaEmbeddingWrapper
-            from .langchain_models import LangChainEmbeddingModelFactory
+            from .models import EmbeddingModelFactory
 
-            # Create LangChain embedding function
-            langchain_embedding_model = LangChainEmbeddingModelFactory.create_model(embedding_model, api_key, base_url)
-            self.langchain_embedding = LangChainChromaEmbeddingWrapper(langchain_embedding_model)
+            # Create embedding function
+            embedding_model_instance = EmbeddingModelFactory.create_model(embedding_model, api_key, base_url)
+            self.langchain_embedding = LangChainChromaEmbeddingWrapper(embedding_model_instance)
 
             self.langchain_vectorstore = LangChainChromaVectorStore(
                 embedding_function=self.langchain_embedding,
@@ -206,7 +199,7 @@ class VectorStore:
 
             if texts:
                 # Generate new embeddings
-                embeddings = self.embedding_service.encode_texts(texts)
+                embeddings = await self.embedding_service.encode_texts(texts)
                 embeddings_list = [emb.tolist() for emb in embeddings]
                 update_kwargs["embeddings"] = embeddings_list
                 update_kwargs["documents"] = texts

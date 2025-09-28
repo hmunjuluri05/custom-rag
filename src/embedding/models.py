@@ -1,9 +1,3 @@
-"""
-DEPRECATED: This module contains legacy embedding implementations.
-Use src.embedding.langchain_models instead for new development.
-"""
-
-import warnings
 from typing import List, Dict, Any, Optional
 import numpy as np
 import logging
@@ -13,19 +7,12 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# Issue deprecation warning
-warnings.warn(
-    "src.embedding.models is deprecated. Use src.embedding.langchain_models for new development.",
-    DeprecationWarning,
-    stacklevel=2
-)
-
 
 class EmbeddingModel(ABC):
     """Abstract base class for embedding models"""
 
     @abstractmethod
-    def encode(self, texts: List[str]) -> np.ndarray:
+    async def encode(self, texts: List[str]) -> np.ndarray:
         """Encode texts into embeddings"""
         pass
 
@@ -41,7 +28,7 @@ class EmbeddingModel(ABC):
 
 
 class OpenAIEmbeddingModel(EmbeddingModel):
-    """OpenAI embedding model wrapper with API Gateway support"""
+    """Modern OpenAI embedding model wrapper with Kong API Gateway support"""
 
     def __init__(self, model_name: str = "text-embedding-3-large", api_key: str = None, base_url: str = None):
         self.model_name = model_name
@@ -55,22 +42,21 @@ class OpenAIEmbeddingModel(EmbeddingModel):
         self.api_key = api_key
         self.base_url = base_url
 
-        logger.info(f"Initializing OpenAI embedding model: {model_name}")
+        logger.info(f"Initializing Modern OpenAI embedding model: {model_name}")
 
         try:
-            import openai
+            from langchain_openai import OpenAIEmbeddings
 
-            client_kwargs = {}
-            if self.api_key:
-                client_kwargs["api_key"] = self.api_key
-
-            if self.base_url:
-                client_kwargs["base_url"] = self.base_url
-                logger.info(f"Using API Gateway for embeddings: {self.base_url}")
-            else:
-                logger.info("Using direct OpenAI API for embeddings")
-
-            self.client = openai.OpenAI(**client_kwargs)
+            # Initialize Modern OpenAI embeddings with Kong API Gateway
+            self.embeddings = OpenAIEmbeddings(
+                model=self.model_name,
+                api_key=self.api_key,
+                base_url=self.base_url,
+                # Additional parameters for better performance
+                chunk_size=1000,  # Process up to 1000 texts at once
+                max_retries=3,
+                request_timeout=30
+            )
 
             # Model dimensions mapping
             self.model_dimensions = {
@@ -85,36 +71,25 @@ class OpenAIEmbeddingModel(EmbeddingModel):
             else:
                 self.dimensions = self.model_dimensions[model_name]
 
-            logger.info(f"Successfully initialized OpenAI embedding model: {model_name}")
+            logger.info(f"Successfully initialized Modern OpenAI embedding model: {model_name} via API Gateway: {self.base_url}")
 
         except ImportError:
-            raise Exception("OpenAI library not installed. Please install with: pip install openai")
+            raise Exception("LangChain OpenAI library not installed. Please install with: uv add langchain-openai")
         except Exception as e:
-            logger.error(f"Failed to initialize OpenAI client: {str(e)}")
-            raise Exception(f"Failed to initialize OpenAI embedding model: {str(e)}")
+            logger.error(f"Failed to initialize Modern OpenAI embeddings: {str(e)}")
+            raise Exception(f"Failed to initialize Modern OpenAI embedding model: {str(e)}")
 
-    def encode(self, texts: List[str]) -> np.ndarray:
-        """Encode texts into embeddings using OpenAI API"""
+    async def encode(self, texts: List[str]) -> np.ndarray:
+        """Encode texts into embeddings using Modern OpenAI API"""
         try:
             if not texts:
                 return np.array([])
 
-            # OpenAI API has a limit on batch size, so we process in batches
-            batch_size = 100  # Conservative batch size
-            all_embeddings = []
+            # Use Modern's async embed_documents method
+            embeddings_list = await self.embeddings.aembed_documents(texts)
 
-            for i in range(0, len(texts), batch_size):
-                batch = texts[i:i + batch_size]
-
-                response = self.client.embeddings.create(
-                    model=self.model_name,
-                    input=batch
-                )
-
-                batch_embeddings = [embedding.embedding for embedding in response.data]
-                all_embeddings.extend(batch_embeddings)
-
-            return np.array(all_embeddings)
+            # Convert to numpy array
+            return np.array(embeddings_list)
 
         except Exception as e:
             logger.error(f"Error encoding texts with OpenAI: {str(e)}")
@@ -128,8 +103,9 @@ class OpenAIEmbeddingModel(EmbeddingModel):
         """Get the model name"""
         return self.model_name
 
+
 class GoogleEmbeddingModel(EmbeddingModel):
-    """Google embedding model wrapper with API Gateway support"""
+    """Modern Google embedding model wrapper with Kong API Gateway support"""
 
     def __init__(self, model_name: str = "models/embedding-001", api_key: str = None, base_url: str = None):
         self.model_name = model_name
@@ -143,21 +119,18 @@ class GoogleEmbeddingModel(EmbeddingModel):
         self.api_key = api_key
         self.base_url = base_url
 
-        logger.info(f"Initializing Google embedding model: {model_name}")
+        logger.info(f"Initializing Modern Google embedding model: {model_name}")
 
         try:
-            import google.generativeai as genai
+            # Use Google's native embedding implementation
+            from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
-            if self.base_url:
-                # For API Gateway, we might need to configure transport or use custom client
-                logger.info(f"Using API Gateway for Google embeddings: {self.base_url}")
-                # Note: Google's library might need additional configuration for custom base URLs
-                logger.warning("Google embedding API Gateway support is limited. Consider using OpenAI-compatible endpoints.")
-
-            if self.api_key:
-                genai.configure(api_key=self.api_key)
-            else:
-                logger.info("Using default Google API configuration")
+            # Initialize Google embeddings with proper configuration
+            self.embeddings = GoogleGenerativeAIEmbeddings(
+                model=self.model_name,
+                google_api_key=self.api_key,
+                task_type="retrieval_document"
+            )
 
             # Model dimensions mapping for Google models
             self.model_dimensions = {
@@ -174,31 +147,22 @@ class GoogleEmbeddingModel(EmbeddingModel):
             logger.info(f"Successfully initialized Google embedding model: {model_name}")
 
         except ImportError:
-            raise Exception("Google Generative AI library not installed. Please install with: pip install google-generativeai")
+            raise Exception("LangChain Google GenAI library not installed. Please install with: uv add langchain-google-genai")
         except Exception as e:
-            logger.error(f"Failed to initialize Google client: {str(e)}")
-            raise Exception(f"Failed to initialize Google embedding model: {str(e)}")
+            logger.error(f"Failed to initialize Modern Google embeddings: {str(e)}")
+            raise Exception(f"Failed to initialize Modern Google embedding model: {str(e)}")
 
-    def encode(self, texts: List[str]) -> np.ndarray:
-        """Encode texts into embeddings using Google API"""
+    async def encode(self, texts: List[str]) -> np.ndarray:
+        """Encode texts into embeddings using Modern via Kong Gateway"""
         try:
             if not texts:
                 return np.array([])
 
-            import google.generativeai as genai
+            # Use Modern's async embed_documents method
+            embeddings_list = await self.embeddings.aembed_documents(texts)
 
-            # Google API processes one text at a time for embeddings
-            embeddings = []
-
-            for text in texts:
-                response = genai.embed_content(
-                    model=self.model_name,
-                    content=text,
-                    task_type="retrieval_document"
-                )
-                embeddings.append(response['embedding'])
-
-            return np.array(embeddings)
+            # Convert to numpy array
+            return np.array(embeddings_list)
 
         except Exception as e:
             logger.error(f"Error encoding texts with Google: {str(e)}")
@@ -212,12 +176,13 @@ class GoogleEmbeddingModel(EmbeddingModel):
         """Get the model name"""
         return self.model_name
 
+
 class EmbeddingModelFactory:
-    """Factory for creating embedding models"""
+    """Factory for creating Modern embedding models"""
 
     @classmethod
     def create_model(cls, model_name: str = None, api_key: str = None, base_url: str = None) -> EmbeddingModel:
-        """Create an embedding model with optional API Gateway support"""
+        """Create a Modern embedding model with Kong API Gateway support"""
         from ..config.model_config import get_model_config, EmbeddingProvider, get_kong_config, derive_embedding_url
         config = get_model_config()
 
@@ -271,8 +236,9 @@ class EmbeddingModelFactory:
         # Fallback to default
         return config.get_default_embedding_model()
 
+
 class EmbeddingService:
-    """Service for managing embeddings and similarity search"""
+    """Service for managing Modern embeddings and similarity search"""
 
     def __init__(self, model_name: str = None, api_key: str = None, base_url: str = None):
         self.model = EmbeddingModelFactory.create_model(model_name, api_key, base_url)
@@ -281,31 +247,43 @@ class EmbeddingService:
         self.base_url = base_url
 
     async def encode_texts(self, texts: List[str], batch_size: int = 32) -> List[np.ndarray]:
-        """Encode texts in batches"""
+        """Encode texts using Modern embeddings"""
         if not texts:
             return []
 
-        embeddings = []
+        try:
+            # Modern handles batching internally, so we can pass all texts at once
+            # But we'll still respect the batch_size for very large datasets
+            all_embeddings = []
 
-        # Process in batches to avoid memory issues
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
-            batch_embeddings = self.model.encode(batch)
-            embeddings.extend(batch_embeddings)
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i:i + batch_size]
+                batch_embeddings = await self.model.encode(batch)
 
-        return embeddings
+                # Convert numpy array to list of individual embeddings
+                if len(batch_embeddings.shape) == 2:
+                    all_embeddings.extend([emb for emb in batch_embeddings])
+                else:
+                    all_embeddings.extend(batch_embeddings)
 
-    def find_similar_texts(self,
-                          query_text: str,
-                          candidate_texts: List[str],
-                          top_k: int = 5) -> List[Dict[str, Any]]:
-        """Find most similar texts to query"""
+            return all_embeddings
+
+        except Exception as e:
+            logger.error(f"Error encoding texts: {str(e)}")
+            raise Exception(f"Failed to encode texts: {str(e)}")
+
+    async def find_similar_texts(self,
+                                query_text: str,
+                                candidate_texts: List[str],
+                                top_k: int = 5) -> List[Dict[str, Any]]:
+        """Find most similar texts to query using Modern embeddings"""
         try:
             # Encode query
-            query_embedding = self.model.encode([query_text])[0]
+            query_embeddings = await self.model.encode([query_text])
+            query_embedding = query_embeddings[0]
 
             # Encode candidates
-            candidate_embeddings = self.model.encode(candidate_texts)
+            candidate_embeddings = await self.model.encode(candidate_texts)
 
             # Calculate cosine similarities
             from sklearn.metrics.pairwise import cosine_similarity
@@ -332,27 +310,28 @@ class EmbeddingService:
             raise Exception(f"Failed to find similar texts: {str(e)}")
 
     def get_model_info(self) -> Dict[str, Any]:
-        """Get information about the current model"""
+        """Get information about the current Modern model"""
         return {
             "model_name": self.model.get_model_name(),
             "dimension": self.model.get_dimension(),
+            "framework": "langchain",
             "model_info": self._get_model_info() or
-                        {"description": "Custom model", "size": "Unknown"}
+                        {"description": "Modern embedding model", "size": "Unknown"}
         }
 
     def change_model(self, new_model_name: str, api_key: str = None, base_url: str = None) -> bool:
-        """Change the embedding model"""
+        """Change the Modern embedding model"""
         try:
             old_model = self.model_name
             self.model = EmbeddingModelFactory.create_model(new_model_name, api_key, base_url)
             self.model_name = new_model_name
             self.api_key = api_key
             self.base_url = base_url
-            logger.info(f"Changed embedding model from {old_model} to {new_model_name}")
+            logger.info(f"Changed Modern embedding model from {old_model} to {new_model_name}")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to change model to {new_model_name}: {str(e)}")
+            logger.error(f"Failed to change Modern model to {new_model_name}: {str(e)}")
             return False
 
     def _get_model_info(self) -> Dict[str, Any]:
