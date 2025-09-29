@@ -424,7 +424,7 @@ class LLMFactory(ILLMModelFactory):
             api_key = get_api_config()
 
         if base_url is None:
-            base_url = derive_llm_url(provider.value)
+            base_url = derive_llm_url(provider.value, model_name)
 
         # Validate provider and model
         provider_str = provider.value
