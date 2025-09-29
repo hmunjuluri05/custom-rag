@@ -93,39 +93,62 @@ class ModelConfigLoader:
         return self._config.get('llm_models', {}).get(provider)
 
     def get_llm_model_gateway_url(self, provider: str, model: str = None) -> str:
-        """Get gateway URL for a specific LLM model with fallback"""
+        """Get gateway URL for a specific LLM model with BASE_URL + gateway_url concatenation"""
+        fall_back_url = "https://api.openai.com/v1"
+        import os
+
+        base_url = os.getenv('BASE_URL')
         provider_info = self.get_llm_provider_info(provider)
-        if not provider_info:
-            # Fallback to default OpenAI URL
-            return "https://api.openai.com/v1"
+
+        if not base_url or not provider_info:
+            return fall_back_url
+
+        # Get gateway_url path from config
+        gateway_path = None
 
         # Check if model-specific gateway_url exists
         if model and 'models' in provider_info:
             model_info = provider_info['models'].get(model, {})
             if 'gateway_url' in model_info:
-                return model_info['gateway_url']
+                gateway_path = model_info['gateway_url']
 
         # Fall back to provider-level gateway_url
-        gateway_url = provider_info.get('gateway_url')
-        if gateway_url:
-            return gateway_url
+        if not gateway_path:
+            gateway_path = provider_info.get('gateway_url')
 
-        # Final fallback to default OpenAI URL
-        return "https://api.openai.com/v1"
+        # If no gateway path found, use default
+        if not gateway_path:
+            return fall_back_url
+
+        # Concatenate BASE_URL + gateway_path if BASE_URL exists
+        # Ensure proper concatenation (handle trailing/leading slashes)
+        base_url = base_url.rstrip('/')
+        gateway_path = gateway_path.lstrip('/')
+        return f"{base_url}/{gateway_path}"
+
 
     def get_embedding_model_gateway_url(self, model_name: str) -> str:
-        """Get gateway URL for a specific embedding model with fallback"""
+        """Get gateway URL for a specific embedding model with BASE_URL + gateway_url concatenation"""
+        fall_back_url = "https://api.openai.com/v1"
+        import os
+
+        base_url = os.getenv('BASE_URL')
         model_info = self.get_embedding_model_info(model_name)
-        if not model_info:
+
+        if not base_url or not model_info:
             # Fallback to default OpenAI URL
-            return "https://api.openai.com/v1"
+            return fall_back_url
 
-        gateway_url = model_info.get('gateway_url')
-        if gateway_url:
-            return gateway_url
+        gateway_path = model_info.get('gateway_url')
+        if not gateway_path:
+            # Fallback to default OpenAI URL
+            return fall_back_url
 
-        # Fallback to default OpenAI URL
-        return "https://api.openai.com/v1"
+        # Concatenate BASE_URL + gateway_path if BASE_URL exists
+        # Ensure proper concatenation (handle trailing/leading slashes)
+        base_url = base_url.rstrip('/')
+        gateway_path = gateway_path.lstrip('/')
+        return f"{base_url}/{gateway_path}"
 
 
 

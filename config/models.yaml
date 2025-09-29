@@ -12,7 +12,7 @@ embedding_models:
     recommended: true
     requires_api_key: true
     cost: "Paid"
-    gateway_url: "https://api.openai.com/v1"
+    gateway_url: "api/openai/v1"
 
   text-embedding-3-large:
     provider: openai
@@ -22,7 +22,7 @@ embedding_models:
     recommended: true
     requires_api_key: true
     cost: "Paid"
-    gateway_url: "https://api.openai.com/v1"
+    gateway_url: "api/openai/v1"
 
   text-embedding-ada-002:
     provider: openai
@@ -32,7 +32,7 @@ embedding_models:
     recommended: false
     requires_api_key: true
     cost: "Paid"
-    gateway_url: "https://api.openai.com/v1"
+    gateway_url: "api/openai/v1"
 
   # Google Embedding Models
   models/embedding-001:
@@ -43,7 +43,7 @@ embedding_models:
     recommended: true
     requires_api_key: true
     cost: "Free/Paid"
-    gateway_url: "https://generativelanguage.googleapis.com/v1beta"
+    gateway_url: "api/google/v1beta"
 
   models/text-embedding-004:
     provider: google
@@ -53,7 +53,7 @@ embedding_models:
     recommended: true
     requires_api_key: true
     cost: "Free/Paid"
-    gateway_url: "https://generativelanguage.googleapis.com/v1beta"
+    gateway_url: "api/google/v1beta"
 
 llm_models:
   # OpenAI LLM Models
@@ -62,18 +62,18 @@ llm_models:
     description: "OpenAI GPT models for intelligent response generation (supports API Gateway via base_url)"
     requires_api_key: true
     supports_gateway: true
-    gateway_url: "https://api.openai.com/v1"
+    gateway_url: "api/openai/v1"
     models:
       gpt-3.5-turbo:
-        gateway_url: "https://api.openai.com/v1"
+        gateway_url: "api/openai/v1"
       gpt-4:
-        gateway_url: "https://api.openai.com/v1"
+        gateway_url: "api/openai/v1"
       gpt-4-turbo-preview:
-        gateway_url: "https://api.openai.com/v1"
+        gateway_url: "api/openai/v1"
       gpt-4o:
-        gateway_url: "https://api.openai.com/v1"
+        gateway_url: "api/openai/v1"
       gpt-4o-mini:
-        gateway_url: "https://api.openai.com/v1"
+        gateway_url: "api/openai/v1"
     default_model: gpt-4
 
   # Google LLM Models
@@ -82,16 +82,16 @@ llm_models:
     description: "Google Gemini models for intelligent response generation (supports API Gateway via base_url)"
     requires_api_key: true
     supports_gateway: true
-    gateway_url: "https://generativelanguage.googleapis.com/v1beta"
+    gateway_url: "api/google/v1beta"
     models:
       gemini-pro:
-        gateway_url: "https://generativelanguage.googleapis.com/v1beta"
+        gateway_url: "api/google/v1beta"
       gemini-pro-vision:
-        gateway_url: "https://generativelanguage.googleapis.com/v1beta"
+        gateway_url: "api/google/v1beta"
       gemini-1.5-pro:
-        gateway_url: "https://generativelanguage.googleapis.com/v1beta"
+        gateway_url: "api/google/v1beta"
       gemini-1.5-flash:
-        gateway_url: "https://generativelanguage.googleapis.com/v1beta"
+        gateway_url: "api/google/v1beta"
     default_model: gemini-pro
 
 # Default configurations
