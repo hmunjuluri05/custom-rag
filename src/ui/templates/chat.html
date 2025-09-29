@@ -180,25 +180,14 @@
                         <div id="chatModeDescription" class="small text-muted mb-2">
                             Standard RAG with intelligent response generation
                         </div>
-                        <button class="btn btn-outline-info btn-sm w-100" onclick="getQueryModes()" title="Get Available Modes">
-                            <i class="bi bi-info-circle"></i> Modes Info
-                        </button>
-                    </div>
-                </div>
-
-                <div class="card mt-3">
-                    <div class="card-header">
-                        <h6 class="mb-0"><i class="bi bi-lightning-charge"></i> Quick Actions</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="alert alert-info alert-sm">
-                            <i class="bi bi-info-circle me-2"></i>
-                            <small>Use the Admin Panel to configure settings and test different query modes.</small>
+                        <div class="d-flex gap-2 mt-2">
+                            <button class="btn btn-outline-info btn-sm flex-fill" onclick="getQueryModes()" title="Get Available Modes">
+                                <i class="bi bi-info-circle"></i> Modes Info
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="clearChat()" title="Clear Chat History">
+                                <i class="bi bi-trash"></i> Clear Chat
+                            </button>
                         </div>
-                        <button class="btn btn-outline-secondary btn-sm w-100"
-                                onclick="clearChat()">
-                            🗑️ Clear Chat
-                        </button>
                     </div>
                 </div>
 

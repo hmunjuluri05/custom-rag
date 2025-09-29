@@ -9,7 +9,10 @@ document.addEventListener('DOMContentLoaded', function() {
     updateChatModeInfo();
 
     // Debug: Log that functions are loaded
-    console.log('Chat.js loaded. getQueryModes function available:', typeof getQueryModes);
+    console.log('Chat.js loaded. Functions available:', {
+        getQueryModes: typeof getQueryModes,
+        clearChat: typeof clearChat
+    });
 });
 
 function initializeChat() {
@@ -305,5 +308,6 @@ function getQueryModes() {
         });
 }
 
-// Make function globally available
+// Make functions globally available
 window.getQueryModes = getQueryModes;
+window.clearChat = clearChat;
