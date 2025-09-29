@@ -177,9 +177,12 @@
                             <option value="vector_search">🔍 Vector Search</option>
                             <option value="agentic_rag">🧠 Agentic RAG</option>
                         </select>
-                        <div id="chatModeDescription" class="small text-muted">
+                        <div id="chatModeDescription" class="small text-muted mb-2">
                             Standard RAG with intelligent response generation
                         </div>
+                        <button class="btn btn-outline-info btn-sm w-100" onclick="getQueryModes()" title="Get Available Modes">
+                            <i class="bi bi-info-circle"></i> Modes Info
+                        </button>
                     </div>
                 </div>
 
@@ -226,7 +229,7 @@
     </div>
 
 
-    <script src="/static/js/chat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/chat.js"></script>
 </body>
 </html>

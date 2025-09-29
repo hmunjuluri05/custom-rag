@@ -7,6 +7,9 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeChat();
     updateSessionInfo();
     updateChatModeInfo();
+
+    // Debug: Log that functions are loaded
+    console.log('Chat.js loaded. getQueryModes function available:', typeof getQueryModes);
 });
 
 function initializeChat() {
@@ -232,3 +235,75 @@ function updateChatModeInfo() {
 
     description.textContent = modeDescriptions[mode] || 'Unknown mode';
 }
+
+function getQueryModes() {
+    console.log('getQueryModes function called');
+
+    fetch('/api/query/modes')
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Received data:', data);
+            let html = `
+                <div class="modal fade" id="queryModesModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Query Processing Modes</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <h6>Available Query Modes:</h6>
+                                <div class="row">
+            `;
+            data.available_modes.forEach(mode => {
+                const available = mode.available !== false;
+                html += `
+                    <div class="col-md-4 mb-3">
+                        <div class="card ${available ? 'border-success' : 'border-warning'}">
+                            <div class="card-body">
+                                <h6 class="card-title">
+                                    ${mode.mode.replace('_', ' ').toUpperCase()}
+                                    ${available ? '<span class="badge bg-success ms-2">Available</span>' : '<span class="badge bg-warning ms-2">Limited</span>'}
+                                </h6>
+                                <p class="card-text small">${mode.description}</p>
+                                <small class="text-muted"><strong>Use case:</strong> ${mode.use_case}</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            html += `
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            // Remove existing modal if any
+            const existingModal = document.getElementById('queryModesModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            // Add new modal to body
+            document.body.insertAdjacentHTML('beforeend', html);
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('queryModesModal'));
+            modal.show();
+        })
+        .catch(error => {
+            console.error('Error getting query modes:', error);
+            showAlert('Error loading query modes information', 'error');
+        });
+}
+
+// Make function globally available
+window.getQueryModes = getQueryModes;

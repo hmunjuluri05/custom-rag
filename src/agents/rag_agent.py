@@ -358,7 +358,7 @@ class AgenticRAGSystem(IAgentSystem):
     def get_system_info(self) -> Dict[str, Any]:
         """Get information about the multi-agent system"""
         return {
-            "system_type": "Multi-Agent RAG System",
+            "system_type": "Agentic RAG",
             "available_agents": ["general"],
             "total_tools": len(self.general_agent.tools),
             "capabilities": [

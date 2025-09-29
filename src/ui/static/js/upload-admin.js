@@ -2441,19 +2441,6 @@ function getQueryModes() {
             });
 
             html += '</div>';
-
-            if (data.agent_system && data.agent_system.system_type) {
-                html += `
-                    <hr>
-                    <h6>Agent System Information:</h6>
-                    <div class="alert alert-info">
-                        <strong>System:</strong> ${data.agent_system.system_type}<br>
-                        <strong>Available Agents:</strong> ${data.agent_system.available_agents?.join(', ') || 'None'}<br>
-                        <strong>Total Tools:</strong> ${data.agent_system.total_tools || 0}
-                    </div>
-                `;
-            }
-
             html += `
                             </div>
                             <div class="modal-footer">
