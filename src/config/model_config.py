@@ -1,6 +1,5 @@
 """Model configuration loader from YAML files"""
 import yaml
-import os
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -93,6 +92,43 @@ class ModelConfigLoader:
         """Get information about a specific LLM provider"""
         return self._config.get('llm_models', {}).get(provider)
 
+    def get_llm_model_gateway_url(self, provider: str, model: str = None) -> str:
+        """Get gateway URL for a specific LLM model with fallback"""
+        provider_info = self.get_llm_provider_info(provider)
+        if not provider_info:
+            # Fallback to default OpenAI URL
+            return "https://api.openai.com/v1"
+
+        # Check if model-specific gateway_url exists
+        if model and 'models' in provider_info:
+            model_info = provider_info['models'].get(model, {})
+            if 'gateway_url' in model_info:
+                return model_info['gateway_url']
+
+        # Fall back to provider-level gateway_url
+        gateway_url = provider_info.get('gateway_url')
+        if gateway_url:
+            return gateway_url
+
+        # Final fallback to default OpenAI URL
+        return "https://api.openai.com/v1"
+
+    def get_embedding_model_gateway_url(self, model_name: str) -> str:
+        """Get gateway URL for a specific embedding model with fallback"""
+        model_info = self.get_embedding_model_info(model_name)
+        if not model_info:
+            # Fallback to default OpenAI URL
+            return "https://api.openai.com/v1"
+
+        gateway_url = model_info.get('gateway_url')
+        if gateway_url:
+            return gateway_url
+
+        # Fallback to default OpenAI URL
+        return "https://api.openai.com/v1"
+
+
+
     def get_defaults(self) -> Dict[str, Any]:
         """Get default configuration values"""
         return self._config.get('defaults', {})
@@ -137,7 +173,8 @@ class ModelConfigLoader:
             logger.error(f"Invalid embedding provider: {provider_str}")
             return None
 
-    def get_llm_provider_enum(self, provider: str) -> Optional[LLMProvider]:
+    @staticmethod
+    def get_llm_provider_enum(provider: str) -> Optional[LLMProvider]:
         """Get the provider enum for an LLM provider"""
         try:
             return LLMProvider(provider.lower())
@@ -194,74 +231,12 @@ def get_default_llm_config() -> tuple:
     except ValueError:
         provider = LLMProvider.OPENAI
 
-    # Get API keys/URLs based on provider
-    api_key = None
-    base_url = None
-
-    # Get Kong configuration
+    # Get API key and base URL
     api_key = get_api_config()
-
-    if provider == LLMProvider.OPENAI:
-        api_key = api_key
-        base_url = derive_llm_url("openai", model_name)
-    elif provider == LLMProvider.GOOGLE:
-        api_key = api_key
-        base_url = derive_llm_url("google", model_name)
+    base_url = config.get_llm_model_gateway_url(provider_str, model_name)
 
     return provider, model_name, api_key, base_url
 
-def derive_embedding_url(model_name: str) -> str:
-    """Derive gateway URL for embedding models"""
-    import os
-
-    # Check if BASE_URL is explicitly provided
-    base_gateway_url = os.getenv('BASE_URL')
-    if base_gateway_url:
-        # Use provided BASE_URL directly if specified
-        if "openai" in model_name.lower() or "text-embedding" in model_name.lower():
-            return f"{base_gateway_url}/openai/v1"
-        elif "google" in model_name.lower() or "models/" in model_name.lower():
-            return f"{base_gateway_url}/google/v1"
-        else:
-            # Default to OpenAI-compatible endpoint
-            return f"{base_gateway_url}/openai/v1"
-    else:
-        # BASE_URL not provided, derive based on model type
-        if "openai" in model_name.lower() or "text-embedding" in model_name.lower():
-            return "https://api.openai.com/v1"
-        elif "google" in model_name.lower() or "models/" in model_name.lower():
-            return "https://generativelanguage.googleapis.com/v1beta"
-        else:
-            # Default to OpenAI
-            return "https://api.openai.com/v1"
-
-def derive_llm_url(provider: str, model_name: str = None) -> str:
-    """Derive gateway URL for LLM models"""
-    import os
-
-    # Check if BASE_URL is explicitly provided
-    base_url = os.getenv('BASE_URL')
-    if base_url and model_name:
-        # Use custom URL format: base_url/model
-        return f"{base_url}/{model_name}"
-    elif base_url:
-        # BASE_URL provided but no model name, use provider-based path
-        if provider.lower() == "openai":
-            return f"{base_url}/openai/v1"
-        elif provider.lower() == "google":
-            return f"{base_url}/google/v1"
-        else:
-            # Default to OpenAI-compatible endpoint
-            return f"{base_url}/openai/v1"
-    else:
-        # BASE_URL not provided, derive based on provider
-        if provider.lower() == "openai":
-            return "https://api.openai.com/v1"
-        elif provider.lower() == "google":
-            return "https://generativelanguage.googleapis.com/v1beta"
-        else:
-            # Default to OpenAI
-            return "https://api.openai.com/v1"
 
 def get_api_config() -> str:
     """Get API Gateway configuration"""

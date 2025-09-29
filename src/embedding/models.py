@@ -1,9 +1,7 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import numpy as np
 import logging
-from abc import ABC, abstractmethod
-import asyncio
-import os
+from abc import abstractmethod
 from .interfaces.embedding_model_interface import IEmbeddingModel, IEmbeddingModelFactory
 
 logger = logging.getLogger(__name__)
@@ -118,7 +116,7 @@ class OpenAIEmbeddingModel(EmbeddingModel):
             logger.error(f"Failed to initialize Modern OpenAI embeddings: {str(e)}")
             raise Exception(f"Failed to initialize Modern OpenAI embedding model: {str(e)}")
 
-    async def encode(self, texts: List[str]) -> np.ndarray:
+    async def encode(self, texts: List[str], **kwargs) -> np.ndarray:
         """Encode texts into embeddings using Modern OpenAI API"""
         try:
             if not texts:
@@ -220,7 +218,7 @@ class GoogleEmbeddingModel(EmbeddingModel):
             logger.error(f"Failed to initialize Modern Google embeddings: {str(e)}")
             raise Exception(f"Failed to initialize Modern Google embedding model: {str(e)}")
 
-    async def encode(self, texts: List[str]) -> np.ndarray:
+    async def encode(self, texts: List[str], **kwargs) -> np.ndarray:
         """Encode texts into embeddings using Modern via Kong Gateway"""
         try:
             if not texts:
@@ -279,7 +277,7 @@ class EmbeddingModelFactory(IEmbeddingModelFactory):
     @classmethod
     def create_model(cls, model_name: str = None, api_key: str = None, base_url: str = None) -> EmbeddingModel:
         """Create a Modern embedding model with Kong API Gateway support"""
-        from ..config.model_config import get_model_config, EmbeddingProvider, get_api_config, derive_embedding_url
+        from ..config.model_config import get_model_config, get_api_config
         config = get_model_config()
 
         # Use default model if none specified
@@ -291,7 +289,7 @@ class EmbeddingModelFactory(IEmbeddingModelFactory):
             api_key = get_api_config()
 
         if base_url is None:
-            base_url = derive_embedding_url(model_name)
+            base_url = config.get_embedding_model_gateway_url(model_name)
 
         # Get model info from YAML config
         model_info = config.get_embedding_model_info(model_name)

@@ -401,7 +401,7 @@ class LLMFactory(ILLMModelFactory):
     @classmethod
     def create_model(cls, provider = None, model_name: str = None, api_key: str = None, base_url: str = None) -> LLMModel:
         """Create an LLM model instance with Kong API Gateway support"""
-        from ..config.model_config import get_model_config, LLMProvider, get_api_config, derive_llm_url
+        from ..config.model_config import get_model_config, LLMProvider, get_api_config
         config = get_model_config()
 
         # Use defaults if not specified
@@ -424,7 +424,7 @@ class LLMFactory(ILLMModelFactory):
             api_key = get_api_config()
 
         if base_url is None:
-            base_url = derive_llm_url(provider.value, model_name)
+            base_url = config.get_llm_model_gateway_url(provider.value, model_name)
 
         # Validate provider and model
         provider_str = provider.value
