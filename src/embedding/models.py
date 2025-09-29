@@ -4,17 +4,23 @@ import logging
 from abc import ABC, abstractmethod
 import asyncio
 import os
+from .interfaces.embedding_model_interface import IEmbeddingModel, IEmbeddingModelFactory
 
 logger = logging.getLogger(__name__)
 
 
-class EmbeddingModel(ABC):
+class EmbeddingModel(IEmbeddingModel):
     """Abstract base class for embedding models"""
 
     @abstractmethod
-    async def encode(self, texts: List[str]) -> np.ndarray:
+    async def encode(self, texts: List[str], **kwargs) -> np.ndarray:
         """Encode texts into embeddings"""
         pass
+
+    async def encode_single(self, text: str, **kwargs) -> np.ndarray:
+        """Encode a single text into an embedding"""
+        result = await self.encode([text], **kwargs)
+        return result[0]
 
     @abstractmethod
     def get_dimension(self) -> int:
@@ -25,6 +31,39 @@ class EmbeddingModel(ABC):
     def get_model_name(self) -> str:
         """Get the model name"""
         pass
+
+    @abstractmethod
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get comprehensive information about the model"""
+        pass
+
+    @abstractmethod
+    def validate_connection(self) -> bool:
+        """Validate that the model can be reached"""
+        pass
+
+    @abstractmethod
+    def get_max_batch_size(self) -> int:
+        """Get the maximum batch size"""
+        pass
+
+    @abstractmethod
+    def get_max_input_length(self) -> int:
+        """Get the maximum input length"""
+        pass
+
+    def calculate_similarity(self, embedding1: np.ndarray, embedding2: np.ndarray) -> float:
+        """Calculate cosine similarity between two embeddings"""
+        # Normalize embeddings
+        norm1 = np.linalg.norm(embedding1)
+        norm2 = np.linalg.norm(embedding2)
+
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+
+        # Calculate cosine similarity
+        similarity = np.dot(embedding1, embedding2) / (norm1 * norm2)
+        return float(similarity)
 
 
 class OpenAIEmbeddingModel(EmbeddingModel):
@@ -103,6 +142,35 @@ class OpenAIEmbeddingModel(EmbeddingModel):
         """Get the model name"""
         return self.model_name
 
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get comprehensive information about the model"""
+        return {
+            "provider": "openai",
+            "model_name": self.model_name,
+            "dimension": self.dimensions,
+            "max_input_tokens": 8192,
+            "description": f"OpenAI {self.model_name} embedding model with API Gateway support",
+            "use_cases": ["document_search", "similarity", "clustering", "classification"],
+            "framework": "langchain",
+            "gateway_url": self.base_url
+        }
+
+    def validate_connection(self) -> bool:
+        """Validate OpenAI connection"""
+        try:
+            return bool(self.api_key and self.base_url and self.embeddings)
+        except Exception as e:
+            logger.error(f"Connection validation failed: {e}")
+            return False
+
+    def get_max_batch_size(self) -> int:
+        """Get the maximum batch size"""
+        return 1000  # OpenAI's default chunk_size
+
+    def get_max_input_length(self) -> int:
+        """Get the maximum input length in tokens"""
+        return 8192  # OpenAI's token limit for embeddings
+
 
 class GoogleEmbeddingModel(EmbeddingModel):
     """Modern Google embedding model wrapper with Kong API Gateway support"""
@@ -176,14 +244,42 @@ class GoogleEmbeddingModel(EmbeddingModel):
         """Get the model name"""
         return self.model_name
 
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get comprehensive information about the model"""
+        return {
+            "provider": "google",
+            "model_name": self.model_name,
+            "dimension": self.dimensions,
+            "max_input_tokens": 2048,
+            "description": f"Google {self.model_name} embedding model",
+            "use_cases": ["document_search", "similarity", "clustering", "multilingual"],
+            "framework": "langchain"
+        }
 
-class EmbeddingModelFactory:
+    def validate_connection(self) -> bool:
+        """Validate Google connection"""
+        try:
+            return bool(self.api_key and self.embeddings)
+        except Exception as e:
+            logger.error(f"Connection validation failed: {e}")
+            return False
+
+    def get_max_batch_size(self) -> int:
+        """Get the maximum batch size"""
+        return 100  # Google's batch limit is typically smaller
+
+    def get_max_input_length(self) -> int:
+        """Get the maximum input length in tokens"""
+        return 2048  # Google's token limit for embeddings
+
+
+class EmbeddingModelFactory(IEmbeddingModelFactory):
     """Factory for creating Modern embedding models"""
 
     @classmethod
     def create_model(cls, model_name: str = None, api_key: str = None, base_url: str = None) -> EmbeddingModel:
         """Create a Modern embedding model with Kong API Gateway support"""
-        from ..config.model_config import get_model_config, EmbeddingProvider, get_kong_config, derive_embedding_url
+        from ..config.model_config import get_model_config, EmbeddingProvider, get_api_config, derive_embedding_url
         config = get_model_config()
 
         # Use default model if none specified
@@ -192,7 +288,7 @@ class EmbeddingModelFactory:
 
         # Get defaults for api_key and base_url if not provided
         if api_key is None:
-            api_key = get_kong_config()
+            api_key = get_api_config()
 
         if base_url is None:
             base_url = derive_embedding_url(model_name)
@@ -235,6 +331,71 @@ class EmbeddingModelFactory:
 
         # Fallback to default
         return config.get_default_embedding_model()
+
+    @classmethod
+    def get_supported_providers(cls) -> list:
+        """Get list of supported providers"""
+        return ["openai", "google"]
+
+    @classmethod
+    def validate_model_config(cls, model_name: str, **config) -> bool:
+        """Validate model configuration without creating the model"""
+        try:
+            from ..config.model_config import get_model_config
+            model_config = get_model_config()
+
+            # Check if model exists
+            if not model_config.get_embedding_model_info(model_name):
+                return False
+
+            # Check required config parameters
+            api_key = config.get('api_key')
+            base_url = config.get('base_url')
+
+            # API key is required for all models
+            if not api_key:
+                return False
+
+            # Base URL is required for OpenAI models
+            provider = model_config.get_embedding_provider(model_name)
+            if provider and provider.value == "openai" and not base_url:
+                return False
+
+            return True
+        except Exception as e:
+            logger.error(f"Error validating model config: {e}")
+            return False
+
+    @classmethod
+    def get_model_requirements(cls, model_name: str) -> Dict[str, Any]:
+        """Get requirements for a specific model"""
+        try:
+            from ..config.model_config import get_model_config
+            config = get_model_config()
+
+            model_info = config.get_embedding_model_info(model_name)
+            if not model_info:
+                return {"error": f"Unknown model: {model_name}"}
+
+            provider = config.get_embedding_provider(model_name)
+            provider_name = provider.value if provider else "unknown"
+
+            requirements = {
+                "api_key_required": True,
+                "base_url_required": provider_name == "openai",
+                "minimum_memory": "512MB",
+                "required_packages": []
+            }
+
+            if provider_name == "openai":
+                requirements["required_packages"] = ["langchain-openai"]
+            elif provider_name == "google":
+                requirements["required_packages"] = ["langchain-google-genai"]
+
+            return requirements
+        except Exception as e:
+            logger.error(f"Error getting model requirements: {e}")
+            return {"error": str(e)}
 
 
 class EmbeddingService:

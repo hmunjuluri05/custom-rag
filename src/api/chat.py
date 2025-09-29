@@ -9,19 +9,52 @@ class ChatService:
     def __init__(self, rag_system):
         self.rag_system = rag_system
 
-    async def process_query(self, query: str) -> Dict[str, Any]:
-        """Process chat query using RAG system with LLM"""
+    async def process_query(self, query: str, mode: str = "llm_response", **kwargs) -> Dict[str, Any]:
+        """Process chat query using RAG system with specified mode"""
         try:
-            # Use the new LLM-powered query method which returns response with sources
-            result = await self.rag_system.query_with_llm(query, top_k=3)
-            return result
+            top_k = kwargs.get('top_k', 3)
+            document_filter = kwargs.get('document_filter')
+            agent_type = kwargs.get('agent_type', 'general')
+
+            if mode == "vector_search":
+                # Basic vector search without LLM
+                results = await self.rag_system.query(
+                    query_text=query,
+                    top_k=top_k,
+                    document_filter=document_filter
+                )
+                return {
+                    "response": f"Found {len(results)} relevant documents",
+                    "results": results,
+                    "sources": [],
+                    "query": query,
+                    "mode": mode
+                }
+
+            elif mode == "agentic_rag":
+                # Agentic RAG with multi-step reasoning
+                result = await self.rag_system.query_with_agent(
+                    query_text=query,
+                    agent_type=agent_type
+                )
+                return result
+
+            else:
+                # Default: LLM response mode
+                result = await self.rag_system.query_with_llm(
+                    query_text=query,
+                    top_k=top_k,
+                    document_filter=document_filter
+                )
+                return result
 
         except Exception as e:
             logger.error(f"Error processing chat query: {str(e)}")
             return {
                 "response": f"Sorry, I encountered an error while processing your question: {str(e)}",
                 "sources": [],
-                "query": query
+                "query": query,
+                "mode": mode
             }
 
     async def process_query_stream(self, query: str):

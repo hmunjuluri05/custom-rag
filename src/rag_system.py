@@ -3,12 +3,12 @@ import os
 from typing import List, Dict, Any, Optional
 import logging
 from datetime import datetime
-from .embedding.vector_store import VectorStore
+from .upload.interfaces import IDocumentProcessor
+from .embedding.interfaces import IVectorStore
+from .llm.interfaces import ILLMService
+from .agents.interfaces import IAgentSystem
 from .embedding.chunking import ChunkerFactory, ChunkingConfig, ChunkingStrategy
-from .upload.document_processor import DocumentProcessor
-from .llm.models import LLMService
 from .config import LLMProvider
-from .config import get_default_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -17,57 +17,36 @@ class RAGSystem:
     """Complete RAG system combining document processing, embeddings, and retrieval"""
 
     def __init__(self,
-                 collection_name: str = "documents",
-                 embedding_model: str = None,
-                 api_key: str = None,
-                 base_url: str = None,
+                 document_processor: IDocumentProcessor,
+                 vector_store: IVectorStore,
+                 llm_service: ILLMService,
                  chunking_config: Optional[ChunkingConfig] = None,
-                 llm_provider: LLMProvider = None,
-                 llm_model: str = None,
-                 use_langchain_vectorstore: bool = False):
+                 agent_system: Optional[IAgentSystem] = None):
+        """
+        Initialize RAG system with injected dependencies.
 
-        # Initialize chunking configuration
+        Args:
+            document_processor: Service for processing documents
+            vector_store: Service for vector storage and retrieval
+            llm_service: Service for LLM interactions
+            chunking_config: Configuration for text chunking
+            agent_system: Optional agent system for advanced reasoning
+        """
+
+        # Inject dependencies
+        self.document_processor = document_processor
+        self.vector_store = vector_store
+        self.llm_service = llm_service
         self.chunking_config = chunking_config or ChunkingConfig()
+        self.agent_system = agent_system
 
-        # Initialize components
-        self.document_processor = DocumentProcessor()
-        self.vector_store = VectorStore(
-            collection_name=collection_name,
-            embedding_model=embedding_model,
-            api_key=api_key,
-            base_url=base_url,
-            use_langchain_vectorstore=use_langchain_vectorstore
-        )
-
-        # Initialize LLM service with default configuration if not provided
-        if llm_provider is None:
-            default_provider, default_model, default_api_key, default_base_url = get_default_llm_config()
-            llm_provider = default_provider
-            llm_model = llm_model or default_model
-            api_key = api_key or default_api_key
-            base_url = base_url or default_base_url
-
-        # Initialize modern LLM service
-        self.llm_service = LLMService(
-            provider=llm_provider,
-            model_name=llm_model,
-            api_key=api_key,
-            base_url=base_url
-        )
-        logger.info("Using modern LLM implementation")
-
-        # Initialize agent system for advanced workflows
-        self.agent_system = None
-        try:
-            from .agents import MultiAgentRAGSystem
-            self.agent_system = MultiAgentRAGSystem(self, self.llm_service)
-            logger.info("Agent system initialized for advanced workflows")
-        except ImportError as e:
-            logger.warning(f"Could not initialize agent system: {e}")
-
-        logger.info(f"RAG system initialized with embedding model: {embedding_model}, "
-                   f"chunking: {self.chunking_config.strategy.value}, "
-                   f"LLM: {llm_provider.value}")
+        logger.info("RAG system initialized with dependency injection")
+        logger.info(f"Document processor: {type(self.document_processor).__name__}")
+        logger.info(f"Vector store: {type(self.vector_store).__name__}")
+        logger.info(f"LLM service: {type(self.llm_service).__name__}")
+        logger.info(f"Chunking strategy: {self.chunking_config.strategy.value}")
+        if self.agent_system:
+            logger.info(f"Agent system: {type(self.agent_system).__name__}")
 
     def _chunk_text(self, text: str, metadata: Dict[str, Any], custom_config: Optional[ChunkingConfig] = None) -> List[Dict[str, Any]]:
         """Split text into chunks using configured chunking strategy"""
@@ -130,10 +109,10 @@ class RAGSystem:
                 where_filter = {"document_id": document_filter}
 
             # Search in vector store
-            results = await self.vector_store.search(
-                query_text=query_text,
-                top_k=top_k,
-                where_filter=where_filter
+            results = await self.vector_store.similarity_search(
+                query=query_text,
+                k=top_k,
+                filter_dict=where_filter
             )
 
             # Format results for RAG response
@@ -747,24 +726,20 @@ class RAGSystem:
 
 def create_rag_system(**kwargs) -> 'RAGSystem':
     """
-    Factory function to create a modern RAG system with advanced AI capabilities.
+    Factory function to create a modern RAG system with dependency injection.
+
+    This is a convenience function that delegates to the dependency injection factory.
+    For full control over dependencies, use RAGSystemFactory directly.
 
     Features:
     - Modern embedding models with enterprise API gateway support
     - Streaming LLM responses with comprehensive monitoring
     - Advanced agent workflows for multi-step reasoning
     - Vector store abstractions for optimal performance
-    - use_langchain_vectorstore=True: Enables advanced vector operations
+    - Full dependency injection for testing and modularity
     """
-    logger.info("Creating modern RAG system with advanced AI capabilities")
+    logger.info("Creating modern RAG system with dependency injection")
 
-    # Provide defaults if not specified in kwargs
-    if 'api_key' not in kwargs:
-        from .config.model_config import get_kong_config
-        kwargs['api_key'] = get_kong_config()
-
-    if 'base_url' not in kwargs:
-        # base_url will be derived by the factories automatically
-        pass
-
-    return RAGSystem(**kwargs)
+    # Import and use the DI factory
+    from .dependency_injection import RAGSystemFactory
+    return RAGSystemFactory.create_default_rag_system(**kwargs)

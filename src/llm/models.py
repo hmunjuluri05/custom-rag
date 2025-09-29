@@ -1,23 +1,45 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, AsyncGenerator
 import logging
 import os
 import asyncio
+from .interfaces.llm_service_interface import ILLMService
+from .interfaces.llm_model_interface import ILLMModel, ILLMModelFactory
 
 logger = logging.getLogger(__name__)
 
 
-class LLMModel(ABC):
+class LLMModel(ILLMModel):
     """Abstract base class for Modern LLM models"""
 
     @abstractmethod
-    async def generate_response(self, context: str, query: str) -> str:
+    async def generate_response(self, context: str, query: str, **kwargs) -> str:
         """Generate response using context and query"""
+        pass
+
+    @abstractmethod
+    async def generate_response_stream(self, context: str, query: str, **kwargs) -> AsyncGenerator[str, None]:
+        """Generate streaming response"""
         pass
 
     @abstractmethod
     def get_model_info(self) -> Dict[str, Any]:
         """Get model information"""
+        pass
+
+    @abstractmethod
+    def validate_connection(self) -> bool:
+        """Validate connection"""
+        pass
+
+    @abstractmethod
+    def get_token_limit(self) -> Optional[int]:
+        """Get token limit"""
+        pass
+
+    @abstractmethod
+    def estimate_tokens(self, text: str) -> int:
+        """Estimate token count"""
         pass
 
 
@@ -203,8 +225,38 @@ Error details: {error_msg}"""
             "description": f"Modern OpenAI {self.model_name} via API Gateway with intelligent response generation",
             "cost": "Enterprise Gateway",
             "gateway_url": self.base_url,
-            "framework": "langchain"
+            "framework": "langchain",
+            "capabilities": ["response_generation", "streaming", "context_aware"],
+            "token_limit": self.get_token_limit()
         }
+
+    def validate_connection(self) -> bool:
+        """Validate OpenAI connection"""
+        try:
+            # Simple validation - check if we have required credentials
+            return bool(self.api_key and self.base_url and self.llm)
+        except Exception as e:
+            logger.error(f"Connection validation failed: {e}")
+            return False
+
+    def get_token_limit(self) -> Optional[int]:
+        """Get token limit for OpenAI model"""
+        # Common OpenAI model token limits
+        token_limits = {
+            "gpt-4": 8192,
+            "gpt-4-32k": 32768,
+            "gpt-4-turbo": 128000,
+            "gpt-4o": 128000,
+            "gpt-3.5-turbo": 4096,
+            "gpt-3.5-turbo-16k": 16384
+        }
+        return token_limits.get(self.model_name, 8192)  # Default to 8k
+
+    def estimate_tokens(self, text: str) -> int:
+        """Estimate token count for text"""
+        # Simple estimation: roughly 4 characters per token for English text
+        # This is an approximation; for exact counts, use tiktoken library
+        return max(1, len(text) // 4)
 
 
 class ModernGoogleModel(LLMModel):
@@ -311,17 +363,45 @@ Please answer the question based only on the provided context."""
             "model_name": self.model_name,
             "description": f"Google {self.model_name} with intelligent response generation",
             "cost": "Pay per use",
-            "framework": "langchain"
+            "framework": "langchain",
+            "capabilities": ["response_generation", "streaming", "context_aware"],
+            "token_limit": self.get_token_limit()
         }
 
+    def validate_connection(self) -> bool:
+        """Validate Google connection"""
+        try:
+            # Simple validation - check if we have required credentials
+            return bool(self.api_key and self.llm)
+        except Exception as e:
+            logger.error(f"Connection validation failed: {e}")
+            return False
 
-class LLMFactory:
+    def get_token_limit(self) -> Optional[int]:
+        """Get token limit for Google model"""
+        # Common Google model token limits
+        token_limits = {
+            "gemini-pro": 32768,
+            "gemini-1.5-pro": 1000000,
+            "gemini-1.5-flash": 1000000,
+            "gemini-ultra": 32768
+        }
+        return token_limits.get(self.model_name, 32768)  # Default to 32k
+
+    def estimate_tokens(self, text: str) -> int:
+        """Estimate token count for text"""
+        # Simple estimation: roughly 4 characters per token
+        # Google models may have different tokenization, but this is a reasonable approximation
+        return max(1, len(text) // 4)
+
+
+class LLMFactory(ILLMModelFactory):
     """Factory for creating Modern LLM models"""
 
     @classmethod
     def create_model(cls, provider = None, model_name: str = None, api_key: str = None, base_url: str = None) -> LLMModel:
         """Create a Modern LLM model instance with Kong API Gateway support"""
-        from ..config.model_config import get_model_config, LLMProvider, get_kong_config, derive_llm_url
+        from ..config.model_config import get_model_config, LLMProvider, get_api_config, derive_llm_url
         config = get_model_config()
 
         # Use defaults if not specified
@@ -341,7 +421,7 @@ class LLMFactory:
 
         # Get defaults for api_key and base_url if not provided
         if api_key is None:
-            api_key = get_kong_config()
+            api_key = get_api_config()
 
         if base_url is None:
             base_url = derive_llm_url(provider.value)
@@ -369,8 +449,41 @@ class LLMFactory:
         config = get_model_config()
         return config.get_llm_models()
 
+    @classmethod
+    def get_supported_providers(cls) -> list:
+        """Get list of supported providers"""
+        return ["openai", "google"]
 
-class LLMService:
+    @classmethod
+    def validate_model_config(cls, provider: str, model_name: str, **config) -> bool:
+        """Validate model configuration without creating the model"""
+        try:
+            from ..config.model_config import get_model_config
+            model_config = get_model_config()
+
+            # Check if provider is supported
+            if provider not in cls.get_supported_providers():
+                return False
+
+            # Check if model is valid for provider
+            if not model_config.is_valid_llm_model(provider, model_name):
+                return False
+
+            # Check required config parameters
+            api_key = config.get('api_key')
+            base_url = config.get('base_url')
+
+            # API key and base_url are required for both providers
+            if not api_key or not base_url:
+                return False
+
+            return True
+        except Exception as e:
+            logger.error(f"Error validating model config: {e}")
+            return False
+
+
+class LLMService(ILLMService):
     """Service for managing Modern LLM operations"""
 
     def __init__(self, provider = None, model_name: str = None, api_key: str = None, base_url: str = None, enable_callbacks: bool = True):
@@ -432,3 +545,59 @@ class LLMService:
         except Exception as e:
             logger.error(f"Failed to change Modern LLM model: {str(e)}")
             return False
+
+    # Interface implementation methods
+    async def generate_response_with_sources(self,
+                                           context: str,
+                                           query: str,
+                                           sources: list = None) -> Dict[str, Any]:
+        """Generate response with source attribution"""
+        try:
+            # Generate the response using context and query
+            response = await self.generate_response(context, query)
+
+            return {
+                'response': response,
+                'sources': sources or [],
+                'query': query,
+                'model_info': self.get_model_info()
+            }
+
+        except Exception as e:
+            logger.error(f"Error generating response with sources: {str(e)}")
+            return {
+                'response': f"Error generating response: {str(e)}",
+                'sources': sources or [],
+                'query': query,
+                'error': str(e)
+            }
+
+    async def generate_streaming_response(self,
+                                        context: str,
+                                        query: str) -> AsyncGenerator[Dict[str, Any], None]:
+        """Generate streaming response"""
+        try:
+            # Check if streaming is available
+            if hasattr(self.llm_model, 'generate_response_stream'):
+                async for chunk in self.generate_response_stream(context, query):
+                    yield {
+                        'type': 'chunk',
+                        'content': chunk,
+                        'model_info': self.get_model_info()
+                    }
+            else:
+                # Fallback to non-streaming
+                response = await self.generate_response(context, query)
+                yield {
+                    'type': 'complete',
+                    'content': response,
+                    'model_info': self.get_model_info()
+                }
+
+        except Exception as e:
+            logger.error(f"Error in streaming response: {str(e)}")
+            yield {
+                'type': 'error',
+                'content': f"Streaming error: {str(e)}",
+                'error': str(e)
+            }

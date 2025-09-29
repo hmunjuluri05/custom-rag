@@ -13,18 +13,32 @@ load_dotenv()
 # Validate required environment variables
 def validate_environment():
     """Validate that required environment variables are set"""
-    kong_api_key = os.getenv('KONG_API_KEY')
+    api_key = os.getenv('API_KEY')
 
-    if not kong_api_key:
-        raise ValueError("KONG_API_KEY environment variable is not set. Please check your .env file.")
+    # Validate API key
+    if not api_key:
+        raise ValueError("API_KEY environment variable is not set. Please check your .env file.")
 
-    if kong_api_key == 'your_kong_api_key_here':
+    if api_key == 'your_api_key_here':
         raise ValueError(
-            "KONG_API_KEY is still set to the placeholder value. "
-            "Please edit your .env file and set KONG_API_KEY to your actual Kong API key."
+            "API_KEY is still set to the placeholder value. "
+            "Please edit your .env file and set API_KEY to your actual API key."
         )
 
-    logging.info(f"Kong API key loaded successfully (ends with: ...{kong_api_key[-4:]})")
+    # Validate optional but recommended variables
+    if not os.getenv('DEFAULT_LLM_PROVIDER'):
+        logging.warning("DEFAULT_LLM_PROVIDER not set, using default 'openai'")
+
+    if not os.getenv('DEFAULT_EMBEDDING_MODEL'):
+        logging.warning("DEFAULT_EMBEDDING_MODEL not set, using default 'text-embedding-3-small'")
+
+    base_url = os.getenv('BASE_URL')
+    if base_url:
+        logging.info(f"Using custom gateway BASE_URL: {base_url}")
+    else:
+        logging.info("BASE_URL not set, will use provider-specific URLs (OpenAI/Google direct)")
+
+    logging.info(f"API key loaded successfully (ends with: ...{api_key[-4:]})")
 
 # Validate environment before proceeding
 validate_environment()
@@ -38,7 +52,7 @@ from src.api.chat import ChatService
 
 # Import service modules
 from src.upload.file_service import FileUploadService
-from src.rag_system import create_rag_system
+from src.dependency_injection.rag_factory import create_rag_system
 from src.ui.upload_ui import UploadUI
 from src.ui.chat_ui import ChatUI
 

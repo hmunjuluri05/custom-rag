@@ -7,6 +7,7 @@ from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.memory import ConversationBufferMemory
 from pydantic import Field
 import asyncio
+from .interfaces.agent_system_interface import IAgentSystem
 
 logger = logging.getLogger(__name__)
 
@@ -105,8 +106,8 @@ class DocumentAnalysisTool(BaseTool):
                 doc_summary = []
                 for doc in documents[:10]:  # Limit to first 10 documents
                     doc_summary.append(
-                        f"• {doc['filename']} ({doc['file_type']}) - "
-                        f"{doc['chunk_count']} chunks, uploaded {doc['upload_date']}"
+                        f"• {doc.get('filename', 'unknown')} ({doc.get('document_type', 'unknown')}) - "
+                        f"{doc.get('total_chunks', 0)} chunks, uploaded {doc.get('timestamp', 'unknown')}"
                     )
 
                 summary = f"Knowledge base contains {len(documents)} documents:\n\n"
@@ -136,8 +137,8 @@ class DocumentAnalysisTool(BaseTool):
             doc_summary = []
             for doc in documents[:10]:  # Limit to first 10 documents
                 doc_summary.append(
-                    f"• {doc['filename']} ({doc['file_type']}) - "
-                    f"{doc['chunk_count']} chunks, uploaded {doc['upload_date']}"
+                    f"• {doc.get('filename', 'unknown')} ({doc.get('document_type', 'unknown')}) - "
+                    f"{doc.get('total_chunks', 0)} chunks, uploaded {doc.get('timestamp', 'unknown')}"
                 )
 
             summary = f"Knowledge base contains {len(documents)} documents:\n\n"
@@ -302,8 +303,8 @@ class RAGAgent:
         }
 
 
-class MultiAgentRAGSystem:
-    """Coordinator for multiple specialized RAG agents"""
+class AgenticRAGSystem(IAgentSystem):
+    """Agentic RAG system with multi-step reasoning and tool orchestration"""
 
     def __init__(self, rag_system, llm_service):
         self.rag_system = rag_system
@@ -371,3 +372,39 @@ class MultiAgentRAGSystem:
                 "general": self.general_agent.get_agent_info()
             }
         }
+
+    # Interface implementation methods
+    async def query_with_agent(self,
+                              query_text: str,
+                              agent_type: str = "general",
+                              **kwargs) -> Dict[str, Any]:
+        """Query using agent with specified type - Interface implementation"""
+        try:
+            # Use existing agent_query method
+            result = await self.agent_query(query_text, agent_type)
+            return result
+        except Exception as e:
+            logger.error(f"Error in agent query: {str(e)}")
+            return {
+                "response": f"Agent query failed: {str(e)}",
+                "agent_type": agent_type,
+                "tools_used": [],
+                "agent_reasoning": "Error occurred during processing",
+                "error": str(e),
+                "fallback": True
+            }
+
+    def get_available_agents(self) -> list:
+        """Get list of available agent types"""
+        return ["general"]
+
+    def get_agent_info(self) -> Dict[str, Any]:
+        """Get information about the agent system"""
+        return self.get_system_info()
+
+    def is_available(self) -> bool:
+        """Check if agent system is available and functional"""
+        try:
+            return self.general_agent is not None and self.llm_service is not None
+        except Exception:
+            return False

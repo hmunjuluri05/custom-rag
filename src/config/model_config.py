@@ -199,51 +199,79 @@ def get_default_llm_config() -> tuple:
     base_url = None
 
     # Get Kong configuration
-    kong_api_key = get_kong_config()
+    api_key = get_api_config()
 
     if provider == LLMProvider.OPENAI:
-        api_key = kong_api_key
+        api_key = api_key
         base_url = derive_llm_url("openai")
     elif provider == LLMProvider.GOOGLE:
-        api_key = kong_api_key
+        api_key = api_key
         base_url = derive_llm_url("google")
 
     return provider, model_name, api_key, base_url
 
 def derive_embedding_url(model_name: str) -> str:
-    """Derive Kong gateway URL for embedding models"""
-    # Kong gateway structure based on model name
-    if "openai" in model_name.lower() or "text-embedding" in model_name.lower():
-        return "https://api.kong-gateway.company.com/openai/v1"
-    elif "google" in model_name.lower() or "models/" in model_name.lower():
-        return "https://api.kong-gateway.company.com/google/v1"
+    """Derive gateway URL for embedding models"""
+    import os
+
+    # Check if BASE_URL is explicitly provided
+    base_gateway_url = os.getenv('BASE_URL')
+    if base_gateway_url:
+        # Use provided BASE_URL directly if specified
+        if "openai" in model_name.lower() or "text-embedding" in model_name.lower():
+            return f"{base_gateway_url}/openai/v1"
+        elif "google" in model_name.lower() or "models/" in model_name.lower():
+            return f"{base_gateway_url}/google/v1"
+        else:
+            # Default to OpenAI-compatible endpoint
+            return f"{base_gateway_url}/openai/v1"
     else:
-        # Default to OpenAI-compatible endpoint
-        return "https://api.kong-gateway.company.com/openai/v1"
+        # BASE_URL not provided, derive based on model type
+        if "openai" in model_name.lower() or "text-embedding" in model_name.lower():
+            return "https://api.openai.com/v1"
+        elif "google" in model_name.lower() or "models/" in model_name.lower():
+            return "https://generativelanguage.googleapis.com/v1beta"
+        else:
+            # Default to OpenAI
+            return "https://api.openai.com/v1"
 
 def derive_llm_url(provider: str) -> str:
-    """Derive Kong gateway URL for LLM models"""
-    # Kong gateway structure based on provider
-    if provider.lower() == "openai":
-        return "https://api.kong-gateway.company.com/openai/v1"
-    elif provider.lower() == "google":
-        return "https://api.kong-gateway.company.com/google/v1"
-    else:
-        # Default to OpenAI-compatible endpoint
-        return "https://api.kong-gateway.company.com/openai/v1"
+    """Derive gateway URL for LLM models"""
+    import os
 
-def get_kong_config() -> str:
-    """Get Kong API Gateway configuration"""
+    # Check if BASE_URL is explicitly provided
+    base_gateway_url = os.getenv('BASE_URL')
+    if base_gateway_url:
+        # Use provided BASE_URL directly if specified
+        if provider.lower() == "openai":
+            return f"{base_gateway_url}/openai/v1"
+        elif provider.lower() == "google":
+            return f"{base_gateway_url}/google/v1"
+        else:
+            # Default to OpenAI-compatible endpoint
+            return f"{base_gateway_url}/openai/v1"
+    else:
+        # BASE_URL not provided, derive based on provider
+        if provider.lower() == "openai":
+            return "https://api.openai.com/v1"
+        elif provider.lower() == "google":
+            return "https://generativelanguage.googleapis.com/v1beta"
+        else:
+            # Default to OpenAI
+            return "https://api.openai.com/v1"
+
+def get_api_config() -> str:
+    """Get API Gateway configuration"""
     import os
     from dotenv import load_dotenv
 
     load_dotenv()
 
-    kong_api_key = os.getenv('KONG_API_KEY')
+    api_key = os.getenv('API_KEY')
 
-    return kong_api_key
+    return api_key
 
-def is_kong_configured() -> bool:
-    """Check if Kong API Gateway is properly configured"""
-    kong_api_key = get_kong_config()
-    return bool(kong_api_key)
+def is_api_configured() -> bool:
+    """Check if API Gateway is properly configured"""
+    api_key = get_api_config()
+    return bool(api_key)

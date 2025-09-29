@@ -57,10 +57,18 @@ class ChatUI:
         try:
             message_type = message_data.get("type", "")
             content = message_data.get("content", "")
+            mode = message_data.get("mode", "llm_response")
+            top_k = message_data.get("top_k", 3)
+            agent_type = message_data.get("agent_type", "general")
 
             if message_type == "query":
-                # This will be connected to the RAG system
-                response_data = await self.process_query(content)
+                # Process query with mode information
+                response_data = await self.process_query(
+                    content,
+                    mode=mode,
+                    top_k=top_k,
+                    agent_type=agent_type
+                )
 
                 # Handle both string responses (fallback) and dict responses (with sources)
                 if isinstance(response_data, dict):
@@ -68,6 +76,7 @@ class ChatUI:
                         "type": "response",
                         "content": response_data.get("response", ""),
                         "sources": response_data.get("sources", []),
+                        "mode": response_data.get("mode", mode),
                         "timestamp": asyncio.get_event_loop().time()
                     }))
                 else:
@@ -76,6 +85,7 @@ class ChatUI:
                         "type": "response",
                         "content": response_data,
                         "sources": [],
+                        "mode": mode,
                         "timestamp": asyncio.get_event_loop().time()
                     }))
 
@@ -86,10 +96,19 @@ class ChatUI:
                 "content": f"Error processing message: {str(e)}"
             }))
 
-    async def process_query(self, query: str) -> Union[str, Dict[str, Any]]:
+    async def process_query(self, query: str, mode: str = "llm_response", **kwargs) -> Union[str, Dict[str, Any]]:
         """Process user query (to be connected with RAG system)"""
-        # Placeholder - this will be connected to the actual RAG system
-        return f"Echo: {query} (This will be connected to the RAG system)"
+        # Placeholder - this will be connected to the actual RAG system via ChatService
+        # Map old mode names for backward compatibility
+        if mode == "agent_reasoning":
+            mode = "agentic_rag"
+
+        return {
+            "response": f"Echo ({mode}): {query} (This will be connected to the RAG system)",
+            "sources": [],
+            "query": query,
+            "mode": mode
+        }
 
     def get_router(self):
         """Get the FastAPI router for chat UI routes"""

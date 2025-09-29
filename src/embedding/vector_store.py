@@ -6,10 +6,11 @@ import logging
 from datetime import datetime
 import numpy as np
 from .models import EmbeddingService
+from .interfaces.vector_store_interface import IVectorStore
 
 logger = logging.getLogger(__name__)
 
-class VectorStore:
+class VectorStore(IVectorStore):
     """Vector database wrapper using ChromaDB with optional LangChain integration"""
 
     def __init__(self,
@@ -307,3 +308,93 @@ class VectorStore:
         except Exception as e:
             logger.error(f"Error changing embedding model: {str(e)}")
             return False
+
+    # Interface implementation methods
+    async def similarity_search(self,
+                               query: str,
+                               k: int = 5,
+                               filter_dict: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """Perform similarity search"""
+        try:
+            results = await self.search(
+                query_text=query,
+                top_k=k,
+                where_filter=filter_dict
+            )
+
+            # Convert to expected interface format
+            formatted_results = []
+            for result in results:
+                formatted_results.append({
+                    'content': result.get('content', ''),
+                    'metadata': result.get('metadata', {}),
+                    'id': result.get('id', ''),
+                    'distance': result.get('distance', 0)
+                })
+
+            return formatted_results
+
+        except Exception as e:
+            logger.error(f"Error in similarity search: {str(e)}")
+            raise
+
+    async def similarity_search_with_score(self,
+                                          query: str,
+                                          k: int = 5,
+                                          filter_dict: Dict[str, Any] = None) -> List[tuple]:
+        """Perform similarity search with scores"""
+        try:
+            results = await self.search(
+                query_text=query,
+                top_k=k,
+                where_filter=filter_dict
+            )
+
+            # Convert to expected interface format (doc, score) tuples
+            scored_results = []
+            for result in results:
+                doc = {
+                    'content': result.get('content', ''),
+                    'metadata': result.get('metadata', {}),
+                    'id': result.get('id', '')
+                }
+                score = 1 - result.get('distance', 0)  # Convert distance to similarity score
+                scored_results.append((doc, score))
+
+            return scored_results
+
+        except Exception as e:
+            logger.error(f"Error in similarity search with score: {str(e)}")
+            raise
+
+    async def get_collection_stats(self) -> Dict[str, Any]:
+        """Get statistics about the collection"""
+        try:
+            collection_info = self.get_collection_info()
+
+            # Get document count
+            document_count = collection_info.get('document_count', 0)
+
+            # Get unique document IDs count (for unique documents)
+            all_docs = await self.get_documents()
+            unique_doc_ids = set()
+            for doc in all_docs:
+                doc_id = doc.get('metadata', {}).get('document_id')
+                if doc_id:
+                    unique_doc_ids.add(doc_id)
+
+            return {
+                'total_chunks': document_count,
+                'unique_documents': len(unique_doc_ids),
+                'collection_name': self.collection_name,
+                'embedding_model': self.get_current_model(),
+                'persist_directory': self.persist_directory
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting collection stats: {str(e)}")
+            return {"error": str(e)}
+
+    def get_embedding_model_info(self) -> Dict[str, Any]:
+        """Get information about the embedding model"""
+        return self.get_model_info()

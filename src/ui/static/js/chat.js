@@ -6,6 +6,7 @@ let sessionStart = new Date();
 document.addEventListener('DOMContentLoaded', function() {
     initializeChat();
     updateSessionInfo();
+    updateChatModeInfo();
 });
 
 function initializeChat() {
@@ -88,12 +89,18 @@ function sendMessage() {
     // Show typing indicator
     showTypingIndicator();
 
-    // Send message via WebSocket
-    socket.send(JSON.stringify({
+    // Get current query mode (settings are managed in Admin Panel)
+    const mode = document.getElementById('chatQueryMode').value;
+
+    // Send message via WebSocket with query mode information
+    const payload = {
         type: 'query',
         content: message,
+        mode: mode,
         timestamp: Date.now()
-    }));
+    };
+
+    socket.send(JSON.stringify(payload));
 
     // Clear input
     messageInput.value = '';
@@ -210,3 +217,18 @@ setInterval(function() {
         connectWebSocket();
     }
 }, 10000); // Check every 10 seconds
+
+// ===== QUERY MODE FUNCTIONS =====
+
+function updateChatModeInfo() {
+    const mode = document.getElementById('chatQueryMode').value;
+    const description = document.getElementById('chatModeDescription');
+
+    const modeDescriptions = {
+        'vector_search': 'Fast document retrieval using similarity search without LLM processing',
+        'llm_response': 'Standard RAG with intelligent response generation (recommended)',
+        'agentic_rag': 'Agentic RAG with multi-step reasoning and specialized tools'
+    };
+
+    description.textContent = modeDescriptions[mode] || 'Unknown mode';
+}

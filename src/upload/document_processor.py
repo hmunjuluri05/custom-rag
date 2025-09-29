@@ -3,12 +3,14 @@ from docx import Document
 import openpyxl
 import pandas as pd
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List
 import logging
+
+from .interfaces.document_processor_interface import IDocumentProcessor
 
 logger = logging.getLogger(__name__)
 
-class DocumentProcessor:
+class DocumentProcessor(IDocumentProcessor):
     """Handles text extraction from various document formats"""
 
     def __init__(self):
@@ -194,3 +196,68 @@ class DocumentProcessor:
                 logger.warning(f"Could not extract Excel metadata from {file_path}: {str(e)}")
 
         return metadata
+
+    # Interface implementation methods
+    async def process_file(self, file_path: Path, **kwargs) -> Dict[str, Any]:
+        """Process a single file and return processed content"""
+        try:
+            # Extract text content
+            text_content = self.extract_text(file_path)
+
+            # Extract metadata
+            metadata = self.get_document_metadata(file_path)
+
+            # Get chunking parameters
+            from ..embedding.chunking import ChunkerFactory, ChunkingConfig, ChunkingStrategy
+
+            chunk_size = kwargs.get('chunk_size', 1000)
+            chunk_overlap = kwargs.get('chunk_overlap', 200)
+            strategy = kwargs.get('chunking_strategy', 'recursive_character')
+
+            # Create chunking config
+            chunking_config = ChunkingConfig(
+                strategy=ChunkingStrategy(strategy),
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap
+            )
+
+            # Create chunker and split text
+            chunker = ChunkerFactory.create_chunker(chunking_config)
+            chunks = await chunker.split_text(text_content)
+
+            return {
+                'chunks': chunks,
+                'metadata': metadata,
+                'original_text': text_content,
+                'chunk_count': len(chunks)
+            }
+
+        except Exception as e:
+            logger.error(f"Error processing file {file_path}: {str(e)}")
+            raise
+
+    async def process_files(self, file_paths: List[Path], **kwargs) -> List[Dict[str, Any]]:
+        """Process multiple files and return processed contents"""
+        results = []
+        for file_path in file_paths:
+            try:
+                result = await self.process_file(file_path, **kwargs)
+                result['file_path'] = str(file_path)
+                result['status'] = 'success'
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Failed to process {file_path}: {str(e)}")
+                results.append({
+                    'file_path': str(file_path),
+                    'status': 'error',
+                    'error': str(e)
+                })
+        return results
+
+    def get_supported_formats(self) -> List[str]:
+        """Get list of supported file formats"""
+        return list(self.supported_formats.keys())
+
+    def extract_metadata(self, file_path: Path) -> Dict[str, Any]:
+        """Extract metadata from a file (interface implementation)"""
+        return self.get_document_metadata(file_path)

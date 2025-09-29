@@ -95,8 +95,15 @@ class FileUploadService:
     async def delete_file(self, file_path: str) -> bool:
         """Delete a file from disk"""
         try:
-            path = Path(file_path)
-            if path.exists() and path.parent == self.upload_dir:
+            path = Path(file_path).resolve()  # Resolve to absolute path
+            upload_dir_resolved = self.upload_dir.resolve()
+
+            # Check if path is within upload directory
+            if not str(path).startswith(str(upload_dir_resolved)):
+                logger.error(f"Attempted path traversal: {file_path}")
+                return False
+
+            if path.exists() and path.is_file():
                 path.unlink()
                 logger.info(f"Deleted file: {file_path}")
                 return True

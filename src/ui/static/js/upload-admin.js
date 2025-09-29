@@ -14,6 +14,7 @@ function initializeAdmin() {
     setupDragAndDrop();
     loadChunkingStrategies();
     updateChunkingOptions(); // Initialize chunking options display
+    loadDocumentFilter(); // Load documents for filter dropdown
 
     // Set default LLM display immediately, then try to load from API
     const llmModelDisplay = document.getElementById('llmModelDisplay');
@@ -2152,4 +2153,332 @@ function removePersistentAlert(alertId) {
             activePersistentAlerts.delete(alertId);
         }, 150);
     }
+}
+
+// ===== QUERY TESTING FUNCTIONS =====
+
+function updateQueryModeInfo() {
+    const mode = document.getElementById('queryMode').value;
+    const description = document.getElementById('queryModeDescription');
+    const agentSection = document.getElementById('agentTypeSection');
+
+    const modeDescriptions = {
+        'vector_search': 'Fast document retrieval using similarity search without LLM processing',
+        'llm_response': 'Standard RAG with LLM response generation (recommended for most queries)',
+        'agentic_rag': 'Agentic RAG with multi-step reasoning using specialized tools'
+    };
+
+    description.textContent = modeDescriptions[mode] || 'Unknown mode';
+
+    // Show/hide agent type selection
+    if (mode === 'agentic_rag') {
+        agentSection.style.display = 'block';
+    } else {
+        agentSection.style.display = 'none';
+    }
+}
+
+function loadDocumentFilter() {
+    fetch('/api/documents/')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('documentFilter');
+            if (!select) return;
+
+            // Clear existing options except "All Documents"
+            select.innerHTML = '<option value="">All Documents</option>';
+
+            if (data.documents && data.documents.length > 0) {
+                data.documents.forEach(doc => {
+                    const option = document.createElement('option');
+                    option.value = doc.document_id;
+                    option.textContent = `${doc.filename} (${doc.document_type})`;
+                    select.appendChild(option);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error loading document filter:', error);
+        });
+}
+
+function testQuery() {
+    const query = document.getElementById('testQuery').value.trim();
+    if (!query) {
+        showAlert('Please enter a test query', 'warning');
+        return;
+    }
+
+    const mode = document.getElementById('queryMode').value;
+    const topK = document.getElementById('topK').value;
+    const documentFilter = document.getElementById('documentFilter').value;
+    const agentType = document.getElementById('agentType').value;
+
+    // Build request payload
+    const payload = {
+        query: query,
+        mode: mode,
+        top_k: parseInt(topK) || 5
+    };
+
+    if (documentFilter) {
+        payload.document_filter = documentFilter;
+    }
+
+    if (mode === 'agentic_rag') {
+        payload.agent_type = agentType;
+    }
+
+    // Show loading state
+    const resultsDiv = document.getElementById('testResults');
+    const contentDiv = document.getElementById('testResultsContent');
+
+    resultsDiv.style.display = 'block';
+    contentDiv.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Processing query...</span>
+            </div>
+            <div class="mt-2">Processing ${mode.replace('_', ' ')} query...</div>
+        </div>
+    `;
+
+    // Send request
+    fetch('/api/query/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        displayTestResults(data, mode);
+    })
+    .catch(error => {
+        console.error('Error testing query:', error);
+        contentDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> Error testing query: ${error.message}
+            </div>
+        `;
+    });
+}
+
+function displayTestResults(data, mode) {
+    const contentDiv = document.getElementById('testResultsContent');
+    let html = '';
+
+    // Header with mode info
+    html += `
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">
+                <span class="badge bg-primary">${mode.replace('_', ' ').toUpperCase()}</span>
+                Query: "${data.query}"
+            </h6>
+            <small class="text-muted">Mode: ${data.mode || mode}</small>
+        </div>
+    `;
+
+    if (data.type === 'vector_search') {
+        // Vector search results
+        html += `<div class="alert alert-info">
+            <strong>📊 Vector Search Results:</strong> ${data.total_results} documents found
+        </div>`;
+
+        if (data.results && data.results.length > 0) {
+            html += '<div class="row">';
+            data.results.forEach((result, index) => {
+                const score = Math.round(result.similarity_score * 100);
+                html += `
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <h6 class="card-title">${result.filename}</h6>
+                                    <span class="badge bg-success">${score}%</span>
+                                </div>
+                                <p class="card-text small">${result.content.substring(0, 200)}...</p>
+                                <small class="text-muted">Chunk ${result.chunk_index + 1}</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+        }
+
+    } else if (data.type === 'llm_response') {
+        // LLM response results
+        html += `
+            <div class="alert alert-success">
+                <strong>🤖 LLM Response Generated</strong>
+                ${data.agent_fallback ? ' <span class="badge bg-warning">Agent Fallback</span>' : ''}
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <h6>Response:</h6>
+                    <p>${data.response}</p>
+                </div>
+            </div>
+        `;
+
+        if (data.sources && data.sources.length > 0) {
+            html += `
+                <div class="mt-3">
+                    <h6>📚 Sources (${data.sources.length}):</h6>
+                    <div class="row">
+            `;
+            data.sources.forEach(source => {
+                const relevance = Math.round(source.relevance_score || 0);
+                html += `
+                    <div class="col-md-4 mb-2">
+                        <div class="card border-secondary">
+                            <div class="card-body p-2">
+                                <h6 class="card-title small">${source.filename}</h6>
+                                <div class="d-flex justify-content-between">
+                                    <small>Relevance: ${relevance}%</small>
+                                    <small>Chunks: ${source.chunk_count || 1}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div></div>';
+        }
+
+    } else if (data.type === 'agent_response') {
+        // Agent response results
+        html += `
+            <div class="alert alert-primary">
+                <strong>🤖 Agent Reasoning Complete</strong>
+                <br><small>Agent Type: ${data.agent_type}</small>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <h6>Agent Response:</h6>
+                    <p>${data.response}</p>
+                </div>
+            </div>
+        `;
+
+        if (data.agent_reasoning) {
+            html += `
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h6>🧠 Agent Reasoning:</h6>
+                        <p class="text-muted">${data.agent_reasoning}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (data.tools_used && data.tools_used.length > 0) {
+            html += `
+                <div class="mt-3">
+                    <h6>🛠️ Tools Used:</h6>
+                    <div class="d-flex gap-2">
+            `;
+            data.tools_used.forEach(tool => {
+                html += `<span class="badge bg-info">${tool}</span>`;
+            });
+            html += '</div></div>';
+        }
+    }
+
+    // Performance info
+    html += `
+        <div class="mt-3 p-2 bg-light rounded">
+            <small class="text-muted">
+                <i class="bi bi-clock"></i> Response type: ${data.type}
+                ${data.mode ? ` | Mode: ${data.mode}` : ''}
+            </small>
+        </div>
+    `;
+
+    contentDiv.innerHTML = html;
+}
+
+function clearTestResults() {
+    document.getElementById('testQuery').value = '';
+    document.getElementById('testResults').style.display = 'none';
+}
+
+function getQueryModes() {
+    fetch('/api/query/modes')
+        .then(response => response.json())
+        .then(data => {
+            let html = `
+                <div class="modal fade" id="queryModesModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Query Processing Modes</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <h6>Available Query Modes:</h6>
+                                <div class="row">
+            `;
+
+            data.available_modes.forEach(mode => {
+                const available = mode.available !== false;
+                html += `
+                    <div class="col-md-4 mb-3">
+                        <div class="card ${available ? 'border-success' : 'border-warning'}">
+                            <div class="card-body">
+                                <h6 class="card-title">
+                                    ${mode.mode.replace('_', ' ').toUpperCase()}
+                                    ${available ? '<span class="badge bg-success ms-2">Available</span>' : '<span class="badge bg-warning ms-2">Limited</span>'}
+                                </h6>
+                                <p class="card-text small">${mode.description}</p>
+                                <small class="text-muted"><strong>Use case:</strong> ${mode.use_case}</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+
+            if (data.agent_system && data.agent_system.system_type) {
+                html += `
+                    <hr>
+                    <h6>Agent System Information:</h6>
+                    <div class="alert alert-info">
+                        <strong>System:</strong> ${data.agent_system.system_type}<br>
+                        <strong>Available Agents:</strong> ${data.agent_system.available_agents?.join(', ') || 'None'}<br>
+                        <strong>Total Tools:</strong> ${data.agent_system.total_tools || 0}
+                    </div>
+                `;
+            }
+
+            html += `
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Remove existing modal if any
+            const existingModal = document.getElementById('queryModesModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+
+            // Add new modal to body
+            document.body.insertAdjacentHTML('beforeend', html);
+
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('queryModesModal'));
+            modal.show();
+        })
+        .catch(error => {
+            console.error('Error getting query modes:', error);
+            showAlert('Error loading query modes information', 'error');
+        });
 }

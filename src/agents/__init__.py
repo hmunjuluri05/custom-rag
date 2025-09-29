@@ -7,7 +7,7 @@ with multi-step reasoning capabilities.
 
 Available Agents:
 - RAGAgent: General-purpose agent with knowledge base tools
-- MultiAgentRAGSystem: Coordinator for multiple specialized agents
+- AgenticRAGSystem: Agentic RAG system with multi-step reasoning
 
 Features:
 - Tool-based reasoning
@@ -17,11 +17,11 @@ Features:
 - Multi-step problem solving
 """
 
-from .rag_agent import RAGAgent, MultiAgentRAGSystem, RAGSearchTool, DocumentAnalysisTool
+from .rag_agent import RAGAgent, AgenticRAGSystem, RAGSearchTool, DocumentAnalysisTool
 
 __all__ = [
     "RAGAgent",
-    "MultiAgentRAGSystem",
+    "AgenticRAGSystem",
     "RAGSearchTool",
     "DocumentAnalysisTool"
 ]
