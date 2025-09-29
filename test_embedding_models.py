@@ -22,6 +22,10 @@ import time
 import numpy as np
 from unittest.mock import Mock
 from typing import Dict, Any, List
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add project root to path
 sys.path.append('.')
