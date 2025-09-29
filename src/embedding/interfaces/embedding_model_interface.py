@@ -42,7 +42,7 @@ class IEmbeddingModel(ABC):
             **kwargs: Additional model-specific parameters
 
         Returns:
-            Numpy array embedding with shape (embedding_dim,)
+            Numpy array embedding with shape (embedding_dim)
         """
         pass
 
@@ -135,12 +135,13 @@ class IEmbeddingModelFactory(ABC):
     """
 
     @abstractmethod
-    def create_model(self, model_name: str, **config) -> IEmbeddingModel:
+    def create_model(self, provider: str = None, model_name: str = None, **config) -> IEmbeddingModel:
         """
         Create an embedding model instance.
 
         Args:
-            model_name: Name of the model to create
+            provider: Provider name (e.g., 'openai', 'google'). Optional for backward compatibility.
+            model_name: Name of the model to create. Required.
             **config: Configuration parameters (api_key, base_url, etc.)
 
         Returns:
@@ -182,11 +183,12 @@ class IEmbeddingModelFactory(ABC):
         pass
 
     @abstractmethod
-    def validate_model_config(self, model_name: str, **config) -> bool:
+    def validate_model_config(self, provider: str = None, model_name: str = None, **config) -> bool:
         """
         Validate model configuration without creating the model.
 
         Args:
+            provider: Provider name (optional for backward compatibility)
             model_name: Model name
             **config: Configuration parameters
 

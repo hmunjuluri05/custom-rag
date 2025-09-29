@@ -596,11 +596,18 @@ class EmbeddingModelTester:
                 try:
                     print(f"\nTesting model: {model_name}")
 
-                    # Create model
+                    # Create model - auto-detect provider from model name
+                    # For test purposes, determine provider from model name
+                    if 'ada' in model_name.lower() or 'openai' in model_name.lower():
+                        provider = 'openai'
+                    elif 'gemini' in model_name.lower() or 'google' in model_name.lower():
+                        provider = 'google'
+                    else:
+                        provider = 'openai'  # default
+
                     model = EmbeddingModelFactory.create_model(
-                        model_name=model_name,
-                        api_key=api_key,
-                        base_url=base_url
+                        provider=provider,
+                        model_name=model_name
                     )
 
                     await self.test_embedding_model_interface_compliance(model, model_name)

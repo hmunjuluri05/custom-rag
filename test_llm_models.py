@@ -414,32 +414,19 @@ class LLMModelTester:
                     # Create LLM model using factory
                     from src.llm.models import LLMFactory
                     model = LLMFactory.create_model(
-                        model_name=model_name,
-                        api_key=api_key,
-                        base_url=base_url
+                        provider=provider_name,
+                        model_name=model_name
                     )
 
-                    # Create LLM service with this model
-                    from src.config.model_config import LLMProvider
-                    provider_enum = None
-                    if provider_name.lower() == 'openai':
-                        provider_enum = LLMProvider.OPENAI
-                    elif provider_name.lower() == 'google':
-                        provider_enum = LLMProvider.GOOGLE
+                    # Create LLM service - models handle their own configuration
+                    service = LLMService(
+                        provider=provider_name,
+                        model_name=model_name
+                    )
 
-                    if provider_enum:
-                        service = LLMService(
-                            provider=provider_enum,
-                            model_name=model_name,
-                            api_key=api_key,
-                            base_url=base_url
-                        )
-
-                        await self.test_llm_service_integration(service, f"{model_name}")
-                        await self.test_performance_characteristics(service.llm_model, f"{model_name}")
-                        await self.test_error_handling(service.llm_model, f"{model_name}")
-                    else:
-                        print(f"Unknown provider: {provider_name} for model: {model_name}")
+                    await self.test_llm_service_integration(service, f"{model_name}")
+                    await self.test_performance_characteristics(service.llm_model, f"{model_name}")
+                    await self.test_error_handling(service.llm_model, f"{model_name}")
 
                 except Exception as e:
                     self.log_test(f"{model_name} Model Creation", False, f"Error: {str(e)}")
@@ -456,20 +443,14 @@ class LLMModelTester:
 
                     # Determine provider from model name
                     if 'gpt' in model_name.lower():
-                        from src.config.model_config import LLMProvider
                         service = LLMService(
-                            provider=LLMProvider.OPENAI,
-                            model_name=model_name,
-                            api_key=api_key,
-                            base_url=base_url
+                            provider="openai",
+                            model_name=model_name
                         )
                     elif 'gemini' in model_name.lower():
-                        from src.config.model_config import LLMProvider
                         service = LLMService(
-                            provider=LLMProvider.GOOGLE,
-                            model_name=model_name,
-                            api_key=api_key,
-                            base_url=base_url
+                            provider="google",
+                            model_name=model_name
                         )
                     else:
                         continue

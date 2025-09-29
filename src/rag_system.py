@@ -91,7 +91,11 @@ class RAGSystem:
             chunk_ids.append(f"{document_id}_original")
 
             # Add to vector store
-            await self.vector_store.add_documents(texts, metadatas, chunk_ids)
+            await self.vector_store.add_documents(
+                texts=texts,
+                metadatas=metadatas,
+                document_ids=chunk_ids
+            )
 
             logger.info(f"Added document {filename} with {len(chunks)} chunks")
             return document_id

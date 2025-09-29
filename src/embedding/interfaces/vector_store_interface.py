@@ -1,7 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
-import numpy as np
-
+from typing import List, Dict, Any
 
 class IVectorStore(ABC):
     """Interface for vector storage and retrieval operations"""

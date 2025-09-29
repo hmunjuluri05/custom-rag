@@ -46,17 +46,23 @@ class LLMModel(ILLMModel):
 class OpenAILLMModel(LLMModel):
     """OpenAI model integration with Kong API Gateway support"""
 
-    def __init__(self, model_name: str = "gpt-4", api_key: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(self, model_name: str = "gpt-4", provider: str = "openai"):
         self.model_name = model_name
+        self.provider = provider
 
-        # API key and base_url are mandatory
-        if not api_key:
-            raise ValueError("api_key is required")
-        if not base_url:
-            raise ValueError("base_url is required")
+        # Get configuration from config system
+        from ..config.model_config import get_model_config, get_api_config
+        config = get_model_config()
 
-        self.api_key = api_key
-        self.base_url = base_url
+        # Get API key and base URL from configuration
+        self.api_key = get_api_config()
+        self.base_url = config.get_llm_model_gateway_url(provider, model_name)
+
+        # Validate required configuration
+        if not self.api_key:
+            raise ValueError("API_KEY is required. Set API_KEY environment variable.")
+        if not self.base_url:
+            raise ValueError(f"No gateway URL found for provider: {provider}, model: {model_name}")
 
         try:
             from langchain_openai import ChatOpenAI
@@ -262,17 +268,23 @@ Error details: {error_msg}"""
 class GoogleLLMModel(LLMModel):
     """Google Gemini model integration with Kong API Gateway support"""
 
-    def __init__(self, model_name: str = "gemini-pro", api_key: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(self, model_name: str = "gemini-pro", provider: str = "google"):
         self.model_name = model_name
+        self.provider = provider
 
-        # API key and base_url are mandatory
-        if not api_key:
-            raise ValueError("api_key is required")
-        if not base_url:
-            raise ValueError("base_url is required")
+        # Get configuration from config system
+        from ..config.model_config import get_model_config, get_api_config
+        config = get_model_config()
 
-        self.api_key = api_key
-        self.base_url = base_url
+        # Get API key and base URL from configuration
+        self.api_key = get_api_config()
+        self.base_url = config.get_llm_model_gateway_url(provider, model_name)
+
+        # Validate required configuration
+        if not self.api_key:
+            raise ValueError("API_KEY is required. Set API_KEY environment variable.")
+        if not self.base_url:
+            raise ValueError(f"No gateway URL found for provider: {provider}, model: {model_name}")
 
         try:
             # Use Google's native LLM implementation
@@ -399,15 +411,48 @@ class LLMFactory(ILLMModelFactory):
     """Factory for creating LLM models"""
 
     @classmethod
-    def create_model(cls, provider = None, model_name: str = None, api_key: str = None, base_url: str = None) -> LLMModel:
-        """Create an LLM model instance with Kong API Gateway support"""
-        from ..config.model_config import get_model_config, LLMProvider, get_api_config
+    def create_model(cls, provider: str, model_name: str, **config) -> LLMModel:
+        """Create an LLM model instance - models handle their own configuration"""
+        from ..config.model_config import get_model_config, LLMProvider
+        model_config = get_model_config()
+
+        # Convert string provider to enum if needed
+        if isinstance(provider, str):
+            provider_enum = model_config.get_llm_provider_enum(provider)
+        else:
+            provider_enum = provider
+
+        # Validate provider and model
+        if not model_config.is_valid_llm_provider(provider):
+            raise ValueError(f"Unsupported LLM provider: {provider}")
+
+        if not model_config.is_valid_llm_model(provider, model_name):
+            available_models = model_config.get_llm_provider_info(provider).get('models', [])
+            raise ValueError(f"Model {model_name} not available for provider {provider}. Available models: {available_models}")
+
+        # Create model based on provider - models handle their own config
+        if provider_enum.value == "openai":
+            return OpenAILLMModel(model_name=model_name, provider=provider)
+        elif provider_enum.value == "google":
+            return GoogleLLMModel(model_name=model_name, provider=provider)
+        else:
+            raise ValueError(f"Unsupported LLM provider: {provider}")
+
+    # Backward compatibility method for old signature
+    @classmethod
+    def create_model_legacy(cls, provider = None, model_name: str = None) -> LLMModel:
+        """Legacy method for backward compatibility"""
+        from ..config.model_config import get_model_config, LLMProvider
         config = get_model_config()
 
-        # Use defaults if not specified
+        # Use defaults if not specified and handle string/enum provider input
         if provider is None:
             provider_str = config.get_default_llm_provider()
             provider = config.get_llm_provider_enum(provider_str)
+        elif isinstance(provider, str):
+            # Convert string provider to enum
+            provider = config.get_llm_provider_enum(provider)
+        # If provider is already an enum, use it as-is
 
         if model_name is None:
             if provider.value == "openai":
@@ -419,12 +464,6 @@ class LLMFactory(ILLMModelFactory):
             else:
                 model_name = config.get_default_llm_model()
 
-        # Get defaults for api_key and base_url if not provided
-        if api_key is None:
-            api_key = get_api_config()
-
-        if base_url is None:
-            base_url = config.get_llm_model_gateway_url(provider.value, model_name)
 
         # Validate provider and model
         provider_str = provider.value
@@ -435,10 +474,11 @@ class LLMFactory(ILLMModelFactory):
             available_models = config.get_llm_provider_info(provider_str).get('models', [])
             raise ValueError(f"Model {model_name} not available for provider {provider}. Available models: {available_models}")
 
+        # Create model based on provider - models handle their own config
         if provider.value == "openai":
-            return OpenAILLMModel(model_name=model_name, api_key=api_key, base_url=base_url)
+            return OpenAILLMModel(model_name=model_name, provider=provider_str)
         elif provider.value == "google":
-            return GoogleLLMModel(model_name=model_name, api_key=api_key, base_url=base_url)
+            return GoogleLLMModel(model_name=model_name, provider=provider_str)
         else:
             raise ValueError(f"Unsupported LLM provider: {provider}")
 
@@ -486,13 +526,22 @@ class LLMFactory(ILLMModelFactory):
 class LLMService(ILLMService):
     """Service for managing LLM operations"""
 
-    def __init__(self, provider = None, model_name: str = None, api_key: str = None, base_url: str = None, enable_callbacks: bool = True):
-        from ..config.model_config import LLMProvider
-        self.provider = provider or LLMProvider.OPENAI
+    def __init__(self, provider: str = None, model_name: str = None, enable_callbacks: bool = True):
+        from ..config.model_config import get_model_config
+        config = get_model_config()
+
+        # Use defaults if not specified
+        if provider is None:
+            provider = config.get_default_llm_provider()
+        if model_name is None:
+            provider_info = config.get_llm_provider_info(provider)
+            model_name = provider_info.get('default_model', 'gpt-4') if provider_info else 'gpt-4'
+
+        self.provider = provider
         self.model_name = model_name
-        self.api_key = api_key
-        self.base_url = base_url
-        self.llm_model = LLMFactory.create_model(provider, model_name, api_key, base_url)
+
+        # Create model using factory - models handle their own configuration
+        self.llm_model = LLMFactory.create_model(provider=provider, model_name=model_name)
 
         # Initialize callback system
         if enable_callbacks:
@@ -534,7 +583,7 @@ class LLMService(ILLMService):
     def change_model(self, provider, model_name: str = None, api_key: str = None, base_url: str = None) -> bool:
         """Change the LLM model"""
         try:
-            new_model = LLMFactory.create_model(provider, model_name, api_key, base_url)
+            new_model = LLMFactory.create_model(provider, model_name)
             self.llm_model = new_model
             self.provider = provider
             self.model_name = model_name

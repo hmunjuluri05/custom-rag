@@ -147,11 +147,12 @@ class RAGSystemFactory:
             api_key = api_key or default_api_key
             base_url = base_url or default_base_url
 
+        # Convert enum to string if needed
+        provider_str = provider.value if hasattr(provider, 'value') else provider
+
         return LLMService(
-            provider=provider,
-            model_name=model_name,
-            api_key=api_key,
-            base_url=base_url
+            provider=provider_str,
+            model_name=model_name
         )
 
     @staticmethod

@@ -3,8 +3,6 @@ from chromadb.config import Settings
 import uuid
 from typing import List, Dict, Any, Optional
 import logging
-from datetime import datetime
-import numpy as np
 from .models import EmbeddingService
 from .interfaces.vector_store_interface import IVectorStore
 
@@ -36,7 +34,7 @@ class VectorStore(IVectorStore):
             from .models import EmbeddingModelFactory
 
             # Create embedding function
-            embedding_model_instance = EmbeddingModelFactory.create_model(embedding_model, api_key, base_url)
+            embedding_model_instance = EmbeddingModelFactory.create_model(model_name=embedding_model)
             self.langchain_embedding = LangChainChromaEmbeddingWrapper(embedding_model_instance)
 
             self.langchain_vectorstore = LangChainChromaVectorStore(
@@ -70,19 +68,22 @@ class VectorStore(IVectorStore):
 
     async def add_documents(self,
                            texts: List[str],
-                           metadatas: List[Dict[str, Any]],
-                           ids: Optional[List[str]] = None) -> List[str]:
+                           metadatas: List[Dict[str, Any]] = None,
+                           document_ids: List[str] = None) -> List[str]:
         """Add documents to the vector store"""
         try:
             if not texts:
                 raise ValueError("No texts provided")
 
-            if len(texts) != len(metadatas):
+            # Handle optional metadatas
+            if metadatas is None:
+                metadatas = [{} for _ in texts]
+            elif len(texts) != len(metadatas):
                 raise ValueError("Number of texts and metadatas must match")
 
             # Generate IDs if not provided
-            if ids is None:
-                ids = [str(uuid.uuid4()) for _ in texts]
+            if document_ids is None:
+                document_ids = [str(uuid.uuid4()) for _ in texts]
 
             # Generate embeddings (handle both sync and async)
             embeddings = await self.embedding_service.encode_texts(texts)
@@ -92,14 +93,14 @@ class VectorStore(IVectorStore):
 
             # Add to ChromaDB
             self.collection.add(
-                ids=ids,
+                ids=document_ids,
                 embeddings=embeddings_list,
                 documents=texts,
                 metadatas=metadatas
             )
 
             logger.info(f"Added {len(texts)} documents to vector store")
-            return ids
+            return document_ids
 
         except Exception as e:
             logger.error(f"Error adding documents to vector store: {str(e)}")
@@ -136,7 +137,7 @@ class VectorStore(IVectorStore):
 
                     # For cosine distance, values range from 0 (identical) to 2 (opposite)
                     # Convert to relevance: 0 distance = 100% relevance, 2 distance = 0% relevance
-                    relevance_score = max(0, min(100, (1 - distance/2) * 100))
+                    relevance_score = max(0.0, min(100.0, (1 - distance/2) * 100))
 
                     logger.debug(f"Distance: {distance}, Relevance: {relevance_score}")
 
@@ -217,11 +218,11 @@ class VectorStore(IVectorStore):
             logger.error(f"Error updating documents: {str(e)}")
             return False
 
-    async def delete_documents(self, ids: List[str]) -> bool:
+    async def delete_documents(self, document_ids: List[str]) -> bool:
         """Delete documents from the vector store"""
         try:
-            self.collection.delete(ids=ids)
-            logger.info(f"Deleted {len(ids)} documents")
+            self.collection.delete(ids=document_ids)
+            logger.info(f"Deleted {len(document_ids)} documents")
             return True
 
         except Exception as e:

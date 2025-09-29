@@ -67,17 +67,22 @@ class EmbeddingModel(IEmbeddingModel):
 class OpenAIEmbeddingModel(EmbeddingModel):
     """Modern OpenAI embedding model wrapper with Kong API Gateway support"""
 
-    def __init__(self, model_name: str = "text-embedding-3-large", api_key: str = None, base_url: str = None):
+    def __init__(self, model_name: str = "text-embedding-3-large"):
         self.model_name = model_name
 
-        # API key and base_url are mandatory
-        if not api_key:
-            raise ValueError("api_key is required")
-        if not base_url:
-            raise ValueError("base_url is required")
+        # Get configuration from config system
+        from ..config.model_config import get_model_config, get_api_config
+        config = get_model_config()
 
-        self.api_key = api_key
-        self.base_url = base_url
+        # Get API key and base URL from configuration
+        self.api_key = get_api_config()
+        self.base_url = config.get_embedding_model_gateway_url(model_name)
+
+        # Validate required configuration
+        if not self.api_key:
+            raise ValueError("API_KEY is required. Set API_KEY environment variable.")
+        if not self.base_url:
+            raise ValueError(f"No gateway URL found for embedding model: {model_name}")
 
         logger.info(f"Initializing Modern OpenAI embedding model: {model_name}")
 
@@ -173,17 +178,22 @@ class OpenAIEmbeddingModel(EmbeddingModel):
 class GoogleEmbeddingModel(EmbeddingModel):
     """Modern Google embedding model wrapper with Kong API Gateway support"""
 
-    def __init__(self, model_name: str = "models/embedding-001", api_key: str = None, base_url: str = None):
+    def __init__(self, model_name: str = "models/embedding-001"):
         self.model_name = model_name
 
-        # API key and base_url are mandatory
-        if not api_key:
-            raise ValueError("api_key is required")
-        if not base_url:
-            raise ValueError("base_url is required")
+        # Get configuration from config system
+        from ..config.model_config import get_model_config, get_api_config
+        config = get_model_config()
 
-        self.api_key = api_key
-        self.base_url = base_url
+        # Get API key and base URL from configuration
+        self.api_key = get_api_config()
+        self.base_url = config.get_embedding_model_gateway_url(model_name)
+
+        # Validate required configuration
+        if not self.api_key:
+            raise ValueError("API_KEY is required. Set API_KEY environment variable.")
+        if not self.base_url:
+            raise ValueError(f"No gateway URL found for embedding model: {model_name}")
 
         logger.info(f"Initializing Modern Google embedding model: {model_name}")
 
@@ -275,37 +285,47 @@ class EmbeddingModelFactory(IEmbeddingModelFactory):
     """Factory for creating Modern embedding models"""
 
     @classmethod
-    def create_model(cls, model_name: str = None, api_key: str = None, base_url: str = None) -> EmbeddingModel:
-        """Create a Modern embedding model with Kong API Gateway support"""
-        from ..config.model_config import get_model_config, get_api_config
-        config = get_model_config()
+    def create_model(cls, provider: str = None, model_name: str = None, **config) -> EmbeddingModel:
+        """Create a Modern embedding model - models handle their own configuration"""
+        from ..config.model_config import get_model_config
+        model_config = get_model_config()
 
         # Use default model if none specified
         if model_name is None:
-            model_name = config.get_default_embedding_model()
+            model_name = model_config.get_default_embedding_model()
 
-        # Get defaults for api_key and base_url if not provided
-        if api_key is None:
-            api_key = get_api_config()
-
-        if base_url is None:
-            base_url = config.get_embedding_model_gateway_url(model_name)
-
-        # Get model info from YAML config
-        model_info = config.get_embedding_model_info(model_name)
-        if not model_info:
-            raise ValueError(f"Unknown embedding model: {model_name}. Available models: {list(config.get_embedding_models().keys())}")
-
-        provider = config.get_embedding_provider(model_name)
-        if not provider:
-            raise ValueError(f"Invalid provider for model {model_name}")
-
-        if provider.value == "openai":
-            return OpenAIEmbeddingModel(model_name, api_key, base_url)
-        elif provider.value == "google":
-            return GoogleEmbeddingModel(model_name, api_key, base_url)
+        # Determine provider - use explicit provider if given, otherwise derive from model
+        provider_enum = None
+        if provider is not None:
+            # Use explicitly provided provider
+            from ..config.model_config import EmbeddingProvider
+            try:
+                provider_enum = EmbeddingProvider(provider.lower())
+            except ValueError:
+                raise ValueError(f"Unsupported embedding provider: {provider}")
         else:
-            raise ValueError(f"Unsupported provider {provider} for model {model_name}")
+            # Derive provider from model name
+            provider_enum = model_config.get_embedding_provider(model_name)
+            if not provider_enum:
+                raise ValueError(f"Cannot determine provider for model {model_name}")
+
+        # Get model info from YAML config to validate model exists
+        model_info = model_config.get_embedding_model_info(model_name)
+        if not model_info:
+            raise ValueError(f"Unknown embedding model: {model_name}. Available models: {list(model_config.get_embedding_models().keys())}")
+
+        # Validate that the model belongs to the determined provider
+        model_provider = model_info.get('provider', '').lower()
+        if model_provider != provider_enum.value:
+            raise ValueError(f"Model {model_name} belongs to provider {model_provider}, not {provider_enum.value}")
+
+        # Create model based on provider - models handle their own config
+        if provider_enum.value == "openai":
+            return OpenAIEmbeddingModel(model_name)
+        elif provider_enum.value == "google":
+            return GoogleEmbeddingModel(model_name)
+        else:
+            raise ValueError(f"Unsupported provider {provider_enum.value} for model {model_name}")
 
     @classmethod
     def get_available_models(cls) -> Dict[str, Dict[str, Any]]:
@@ -336,11 +356,20 @@ class EmbeddingModelFactory(IEmbeddingModelFactory):
         return ["openai", "google"]
 
     @classmethod
-    def validate_model_config(cls, model_name: str, **config) -> bool:
+    def validate_model_config(cls, provider: str = None, model_name: str = None, **config) -> bool:
         """Validate model configuration without creating the model"""
         try:
             from ..config.model_config import get_model_config
             model_config = get_model_config()
+
+            # Handle backward compatibility - if only model_name provided
+            if model_name is None and provider is not None:
+                # Old style call - provider is actually model_name
+                model_name = provider
+                provider = None
+
+            if not model_name:
+                return False
 
             # Check if model exists
             if not model_config.get_embedding_model_info(model_name):
@@ -355,8 +384,8 @@ class EmbeddingModelFactory(IEmbeddingModelFactory):
                 return False
 
             # Base URL is required for OpenAI models
-            provider = model_config.get_embedding_provider(model_name)
-            if provider and provider.value == "openai" and not base_url:
+            detected_provider = model_config.get_embedding_provider(model_name)
+            if detected_provider and detected_provider.value == "openai" and not base_url:
                 return False
 
             return True
@@ -400,10 +429,32 @@ class EmbeddingService:
     """Service for managing Modern embeddings and similarity search"""
 
     def __init__(self, model_name: str = None, api_key: str = None, base_url: str = None):
-        self.model = EmbeddingModelFactory.create_model(model_name, api_key, base_url)
+        # Note: api_key and base_url are kept for backward compatibility but ignored
+        # Models handle their own configuration now
+        from ..config.model_config import get_model_config
+        config = get_model_config()
+
+        # Auto-detect provider from model name if not specified
+        provider = None
+        if model_name:
+            provider_enum = config.get_embedding_provider(model_name)
+            if provider_enum:
+                provider = provider_enum.value
+
+        # Use defaults if not specified
+        if not model_name:
+            model_name = config.get_default_embedding_model()
+
+        if not provider:
+            # Derive provider from the default model
+            provider_enum = config.get_embedding_provider(model_name)
+            if provider_enum:
+                provider = provider_enum.value
+            else:
+                provider = 'openai'  # fallback default
+
+        self.model = EmbeddingModelFactory.create_model(provider=provider, model_name=model_name)
         self.model_name = model_name
-        self.api_key = api_key
-        self.base_url = base_url
 
     async def encode_texts(self, texts: List[str], batch_size: int = 32) -> List[np.ndarray]:
         """Encode texts using Modern embeddings"""
@@ -482,7 +533,7 @@ class EmbeddingService:
         """Change the Modern embedding model"""
         try:
             old_model = self.model_name
-            self.model = EmbeddingModelFactory.create_model(new_model_name, api_key, base_url)
+            self.model = EmbeddingModelFactory.create_model(model_name=new_model_name)
             self.model_name = new_model_name
             self.api_key = api_key
             self.base_url = base_url
