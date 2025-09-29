@@ -53,6 +53,7 @@ embedding_models:
 llm_models:
   # OpenAI LLM Models
   openai:
+    provider: openai
     description: "OpenAI GPT models for intelligent response generation (supports API Gateway via base_url)"
     requires_api_key: true
     supports_gateway: true
@@ -66,6 +67,7 @@ llm_models:
 
   # Google LLM Models
   google:
+    provider: google
     description: "Google Gemini models for intelligent response generation (supports API Gateway via base_url)"
     requires_api_key: true
     supports_gateway: true
