@@ -5,7 +5,9 @@ aiofiles==24.1.0
 aiohappyeyeballs==2.6.1
     # via aiohttp
 aiohttp==3.12.15
-    # via custom-rag (pyproject.toml)
+    # via
+    #   custom-rag (pyproject.toml)
+    #   langchain-community
 aiosignal==1.4.0
     # via aiohttp
 annotated-types==0.7.0
@@ -51,6 +53,8 @@ colorama==0.4.6
     #   uvicorn
 coloredlogs==15.0.1
     # via onnxruntime
+dataclasses-json==0.6.7
+    # via langchain-community
 distro==1.9.0
     # via
     #   openai
@@ -66,6 +70,8 @@ filelock==3.19.1
     #   huggingface-hub
     #   torch
     #   transformers
+filetype==1.2.0
+    # via langchain-google-genai
 flatbuffers==25.2.10
     # via onnxruntime
 frozenlist==1.7.0
@@ -96,7 +102,9 @@ google-auth==2.40.3
 google-auth-httplib2==0.2.0
     # via google-api-python-client
 google-generativeai==0.8.5
-    # via custom-rag (pyproject.toml)
+    # via
+    #   custom-rag (pyproject.toml)
+    #   langchain-google-genai
 googleapis-common-protos==1.70.0
     # via
     #   google-api-core
@@ -129,6 +137,8 @@ httpx==0.28.1
     #   chromadb
     #   langsmith
     #   openai
+httpx-sse==0.4.1
+    # via langchain-community
 huggingface-hub==0.35.0
     # via
     #   sentence-transformers
@@ -165,11 +175,22 @@ jsonschema-specifications==2025.9.1
 kubernetes==33.1.0
     # via chromadb
 langchain==0.3.27
+    # via
+    #   custom-rag (pyproject.toml)
+    #   langchain-community
+langchain-community==0.3.30
     # via custom-rag (pyproject.toml)
 langchain-core==0.3.76
     # via
     #   langchain
+    #   langchain-community
+    #   langchain-google-genai
+    #   langchain-openai
     #   langchain-text-splitters
+langchain-google-genai==2.0.10
+    # via custom-rag (pyproject.toml)
+langchain-openai==0.3.33
+    # via custom-rag (pyproject.toml)
 langchain-text-splitters==0.3.11
     # via
     #   custom-rag (pyproject.toml)
@@ -177,6 +198,7 @@ langchain-text-splitters==0.3.11
 langsmith==0.4.30
     # via
     #   langchain
+    #   langchain-community
     #   langchain-core
 lxml==6.0.2
     # via python-docx
@@ -184,6 +206,8 @@ markdown-it-py==4.0.0
     # via rich
 markupsafe==3.0.2
     # via jinja2
+marshmallow==3.26.1
+    # via dataclasses-json
 mdurl==0.1.2
     # via markdown-it-py
 mmh3==5.2.0
@@ -194,12 +218,15 @@ multidict==6.6.4
     # via
     #   aiohttp
     #   yarl
+mypy-extensions==1.1.0
+    # via typing-inspect
 networkx==3.5
     # via torch
 numpy==2.3.3
     # via
     #   custom-rag (pyproject.toml)
     #   chromadb
+    #   langchain-community
     #   onnxruntime
     #   pandas
     #   scikit-learn
@@ -212,7 +239,9 @@ oauthlib==3.3.1
 onnxruntime==1.22.1
     # via chromadb
 openai==1.108.2
-    # via custom-rag (pyproject.toml)
+    # via
+    #   custom-rag (pyproject.toml)
+    #   langchain-openai
 openpyxl==3.1.5
     # via custom-rag (pyproject.toml)
 opentelemetry-api==1.37.0
@@ -247,6 +276,7 @@ packaging==25.0
     #   huggingface-hub
     #   langchain-core
     #   langsmith
+    #   marshmallow
     #   onnxruntime
     #   transformers
 pandas==2.3.2
@@ -289,10 +319,14 @@ pydantic==2.11.9
     #   google-generativeai
     #   langchain
     #   langchain-core
+    #   langchain-google-genai
     #   langsmith
     #   openai
+    #   pydantic-settings
 pydantic-core==2.33.2
     # via pydantic
+pydantic-settings==2.11.0
+    # via langchain-community
 pygments==2.19.2
     # via rich
 pyparsing==3.2.5
@@ -315,6 +349,7 @@ python-docx==1.2.0
 python-dotenv==1.1.1
     # via
     #   custom-rag (pyproject.toml)
+    #   pydantic-settings
     #   uvicorn
 python-multipart==0.0.20
     # via custom-rag (pyproject.toml)
@@ -322,10 +357,12 @@ pytz==2025.2
     # via pandas
 pyyaml==6.0.2
     # via
+    #   custom-rag (pyproject.toml)
     #   chromadb
     #   huggingface-hub
     #   kubernetes
     #   langchain
+    #   langchain-community
     #   langchain-core
     #   transformers
     #   uvicorn
@@ -343,6 +380,7 @@ requests==2.32.5
     #   huggingface-hub
     #   kubernetes
     #   langchain
+    #   langchain-community
     #   langsmith
     #   posthog
     #   requests-oauthlib
@@ -366,7 +404,9 @@ rsa==4.9.1
 safetensors==0.6.2
     # via transformers
 scikit-learn==1.7.2
-    # via sentence-transformers
+    # via
+    #   custom-rag (pyproject.toml)
+    #   sentence-transformers
 scipy==1.16.2
     # via
     #   scikit-learn
@@ -387,7 +427,9 @@ sniffio==1.3.1
     #   anyio
     #   openai
 sqlalchemy==2.0.43
-    # via langchain
+    # via
+    #   langchain
+    #   langchain-community
 starlette==0.48.0
     # via fastapi
 sympy==1.14.0
@@ -397,11 +439,14 @@ sympy==1.14.0
 tenacity==9.1.2
     # via
     #   chromadb
+    #   langchain-community
     #   langchain-core
 threadpoolctl==3.6.0
     # via scikit-learn
 tiktoken==0.11.0
-    # via custom-rag (pyproject.toml)
+    # via
+    #   custom-rag (pyproject.toml)
+    #   langchain-openai
 tokenizers==0.22.1
     # via
     #   chromadb
@@ -422,6 +467,8 @@ typer==0.19.1
     # via chromadb
 typing-extensions==4.15.0
     # via
+    #   aiosignal
+    #   anyio
     #   chromadb
     #   fastapi
     #   google-generativeai
@@ -436,13 +483,20 @@ typing-extensions==4.15.0
     #   pydantic
     #   pydantic-core
     #   python-docx
+    #   referencing
     #   sentence-transformers
     #   sqlalchemy
+    #   starlette
     #   torch
     #   typer
+    #   typing-inspect
     #   typing-inspection
+typing-inspect==0.9.0
+    # via dataclasses-json
 typing-inspection==0.4.1
-    # via pydantic
+    # via
+    #   pydantic
+    #   pydantic-settings
 tzdata==2025.2
     # via pandas
 uritemplate==4.2.0

@@ -8,16 +8,16 @@ with proper dependency injection for loose coupling and testability.
 from typing import Optional, Dict, Any
 import logging
 
-from ..upload.interfaces import IDocumentProcessor
-from ..embedding.interfaces import IVectorStore
-from ..llm.interfaces import ILLMService
-from ..agents.interfaces import IAgentSystem
-from ..rag_system import RAGSystem
-from ..upload.document_processor import DocumentProcessor
-from ..embedding.vector_store import VectorStore
-from ..llm.models import LLMService
-from ..embedding.chunking import ChunkingConfig, ChunkingStrategy
-from ..config import LLMProvider, get_default_llm_config
+from src.upload.interfaces import IDocumentProcessor
+from src.embedding.interfaces import IVectorStore
+from src.llm.interfaces import ILLMService
+from src.agents.interfaces import IAgentSystem
+from src.rag_system import RAGSystem
+from src.upload.document_processor import DocumentProcessor
+from src.embedding.vector_store import VectorStore
+from src.llm.models import LLMService
+from src.embedding.chunking import ChunkingConfig, ChunkingStrategy
+from src.config import LLMProvider, get_default_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +161,7 @@ class RAGSystemFactory:
     ) -> Optional[IAgentSystem]:
         """Create agent system instance."""
         try:
-            from ..agents import AgenticRAGSystem
+            from src.agents import AgenticRAGSystem
             return AgenticRAGSystem(rag_system, llm_service)
         except ImportError as e:
             logger.warning(f"Could not create agent system: {e}")

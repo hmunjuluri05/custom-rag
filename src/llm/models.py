@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class LLMModel(ILLMModel):
-    """Abstract base class for Modern LLM models"""
+    """Abstract base class for LLM models"""
 
     @abstractmethod
     async def generate_response(self, context: str, query: str, **kwargs) -> str:
@@ -43,7 +43,7 @@ class LLMModel(ILLMModel):
         pass
 
 
-class ModernOpenAIModel(LLMModel):
+class OpenAILLMModel(LLMModel):
     """OpenAI model integration with Kong API Gateway support"""
 
     def __init__(self, model_name: str = "gpt-4", api_key: Optional[str] = None, base_url: Optional[str] = None):
@@ -259,7 +259,7 @@ Error details: {error_msg}"""
         return max(1, len(text) // 4)
 
 
-class ModernGoogleModel(LLMModel):
+class GoogleLLMModel(LLMModel):
     """Google Gemini model integration with Kong API Gateway support"""
 
     def __init__(self, model_name: str = "gemini-pro", api_key: Optional[str] = None, base_url: Optional[str] = None):
@@ -396,11 +396,11 @@ Please answer the question based only on the provided context."""
 
 
 class LLMFactory(ILLMModelFactory):
-    """Factory for creating Modern LLM models"""
+    """Factory for creating LLM models"""
 
     @classmethod
     def create_model(cls, provider = None, model_name: str = None, api_key: str = None, base_url: str = None) -> LLMModel:
-        """Create a Modern LLM model instance with Kong API Gateway support"""
+        """Create an LLM model instance with Kong API Gateway support"""
         from ..config.model_config import get_model_config, LLMProvider, get_api_config, derive_llm_url
         config = get_model_config()
 
@@ -436,9 +436,9 @@ class LLMFactory(ILLMModelFactory):
             raise ValueError(f"Model {model_name} not available for provider {provider}. Available models: {available_models}")
 
         if provider.value == "openai":
-            return ModernOpenAIModel(model_name=model_name, api_key=api_key, base_url=base_url)
+            return OpenAILLMModel(model_name=model_name, api_key=api_key, base_url=base_url)
         elif provider.value == "google":
-            return ModernGoogleModel(model_name=model_name, api_key=api_key, base_url=base_url)
+            return GoogleLLMModel(model_name=model_name, api_key=api_key, base_url=base_url)
         else:
             raise ValueError(f"Unsupported LLM provider: {provider}")
 
@@ -484,7 +484,7 @@ class LLMFactory(ILLMModelFactory):
 
 
 class LLMService(ILLMService):
-    """Service for managing Modern LLM operations"""
+    """Service for managing LLM operations"""
 
     def __init__(self, provider = None, model_name: str = None, api_key: str = None, base_url: str = None, enable_callbacks: bool = True):
         from ..config.model_config import LLMProvider

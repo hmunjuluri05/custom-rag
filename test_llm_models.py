@@ -30,7 +30,7 @@ load_dotenv()
 sys.path.append('.')
 
 from src.llm.interfaces import ILLMModel, ILLMModelFactory, ILLMService
-from src.llm.models import LLMFactory, LLMService, ModernOpenAIModel, ModernGoogleModel
+from src.llm.models import LLMFactory, LLMService, OpenAILLMModel, GoogleLLMModel
 
 
 class MockLLMModel(ILLMModel):

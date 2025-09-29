@@ -52,7 +52,7 @@ from src.api.chat import ChatService
 
 # Import service modules
 from src.upload.file_service import FileUploadService
-from src.dependency_injection.rag_factory import create_rag_system
+from src.rag_factory import create_rag_system
 from src.ui.upload_ui import UploadUI
 from src.ui.chat_ui import ChatUI
 
