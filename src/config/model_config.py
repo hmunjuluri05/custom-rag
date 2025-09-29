@@ -1,5 +1,6 @@
 """Model configuration loader from YAML files"""
 import yaml
+import os
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -94,14 +95,19 @@ class ModelConfigLoader:
 
     def get_llm_model_gateway_url(self, provider: str, model: str = None) -> str:
         """Get gateway URL for a specific LLM model with BASE_URL + gateway_url concatenation"""
-        fall_back_url = "https://api.openai.com/v1"
-        import os
-
         base_url = os.getenv('BASE_URL')
         provider_info = self.get_llm_provider_info(provider)
 
-        if not base_url or not provider_info:
-            return fall_back_url
+        # Define provider-specific fallback URLs
+        fallback_urls = {
+            'openai': 'https://api.openai.com/v1',
+            'google': 'https://generativelanguage.googleapis.com/v1beta'
+        }
+        fallback_url = fallback_urls.get(provider.lower(), 'https://api.openai.com/v1')
+
+        if not provider_info:
+            logger.warning(f"No provider info found for: {provider}, using fallback URL: {fallback_url}")
+            return fallback_url
 
         # Get gateway_url path from config
         gateway_path = None
@@ -109,46 +115,67 @@ class ModelConfigLoader:
         # Check if model-specific gateway_url exists
         if model and 'models' in provider_info:
             model_info = provider_info['models'].get(model, {})
-            if 'gateway_url' in model_info:
-                gateway_path = model_info['gateway_url']
+            gateway_path = model_info.get('gateway_url')
 
         # Fall back to provider-level gateway_url
         if not gateway_path:
             gateway_path = provider_info.get('gateway_url')
 
-        # If no gateway path found, use default
+        # If no gateway path found, use provider-specific fallback
         if not gateway_path:
-            return fall_back_url
+            logger.warning(f"No gateway_url found for provider: {provider}, model: {model}, using fallback: {fallback_url}")
+            return fallback_url
 
-        # Concatenate BASE_URL + gateway_path if BASE_URL exists
+        # If no BASE_URL, use provider-specific fallback
+        if not base_url:
+            logger.info(f"BASE_URL not set, using provider fallback for {provider}: {fallback_url}")
+            return fallback_url
+
+        # Concatenate BASE_URL + gateway_path
         # Ensure proper concatenation (handle trailing/leading slashes)
         base_url = base_url.rstrip('/')
         gateway_path = gateway_path.lstrip('/')
-        return f"{base_url}/{gateway_path}"
+        final_url = f"{base_url}/{gateway_path}"
+
+        logger.debug(f"Built gateway URL for {provider}/{model}: {final_url}")
+        return final_url
 
 
     def get_embedding_model_gateway_url(self, model_name: str) -> str:
         """Get gateway URL for a specific embedding model with BASE_URL + gateway_url concatenation"""
-        fall_back_url = "https://api.openai.com/v1"
-        import os
-
         base_url = os.getenv('BASE_URL')
         model_info = self.get_embedding_model_info(model_name)
 
-        if not base_url or not model_info:
-            # Fallback to default OpenAI URL
-            return fall_back_url
+        # Determine provider-specific fallback based on model name
+        if "google" in model_name.lower() or "models/" in model_name.lower():
+            fallback_url = "https://generativelanguage.googleapis.com/v1beta"
+            provider = "google"
+        else:
+            fallback_url = "https://api.openai.com/v1"
+            provider = "openai"
+
+        if not model_info:
+            logger.warning(f"No model info found for embedding model: {model_name}, using {provider} fallback: {fallback_url}")
+            return fallback_url
 
         gateway_path = model_info.get('gateway_url')
         if not gateway_path:
-            # Fallback to default OpenAI URL
-            return fall_back_url
+            logger.warning(f"No gateway_url found for embedding model: {model_name}, using {provider} fallback: {fallback_url}")
+            return fallback_url
 
-        # Concatenate BASE_URL + gateway_path if BASE_URL exists
+        # If no BASE_URL, use provider-specific fallback
+        if not base_url:
+            logger.info(f"BASE_URL not set, using {provider} fallback for embedding model {model_name}: {fallback_url}")
+            return fallback_url
+
+        # Concatenate BASE_URL + gateway_path
         # Ensure proper concatenation (handle trailing/leading slashes)
         base_url = base_url.rstrip('/')
         gateway_path = gateway_path.lstrip('/')
-        return f"{base_url}/{gateway_path}"
+        final_url = f"{base_url}/{gateway_path}"
+
+        logger.debug(f"Built gateway URL for embedding model {model_name}: {final_url}")
+        return final_url
 
 
 
