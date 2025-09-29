@@ -379,49 +379,107 @@ class LLMModelTester:
         # Test factory functionality
         self.test_factory_functionality()
 
-        # Test available providers
-        providers_to_test = []
-        if provider:
-            providers_to_test = [provider]
-        else:
-            # Test all available providers
-            try:
-                from src.config.model_config import get_model_config
-                config = get_model_config()
-                available_models = config.get_llm_models()
-                providers_to_test = list(set(
-                    info.get('provider', 'unknown')
-                    for info in available_models.values()
-                ))
-            except Exception as e:
-                print(f"Could not get available providers: {e}")
-                providers_to_test = ['openai', 'google']
+        # Get available models to test
+        try:
+            from src.config.model_config import get_model_config
+            config = get_model_config()
+            llm_providers = config.get_llm_models()
 
-        for provider_name in providers_to_test:
-            try:
-                print(f"\nTesting {provider_name.upper()} models...")
+            # Extract individual models from provider structure
+            all_models = []
+            for provider_name, provider_info in llm_providers.items():
+                if 'models' in provider_info:
+                    for model_name in provider_info['models'].keys():
+                        all_models.append((model_name, provider_name))
 
-                # Create LLM service for this provider
-                from src.config.model_config import LLMProvider
-                provider_enum = None
-                if provider_name == 'openai':
-                    provider_enum = LLMProvider.OPENAI
-                elif provider_name == 'google':
-                    provider_enum = LLMProvider.GOOGLE
+            models_to_test = []
+            if provider:
+                # Filter by provider
+                models_to_test = [
+                    (model_name, provider_name) for model_name, provider_name in all_models
+                    if provider_name.lower() == provider.lower()
+                ]
+            else:
+                # Test a few representative models from each provider
+                openai_models = [(model_name, provider_name) for model_name, provider_name in all_models if provider_name.lower() == 'openai']
+                google_models = [(model_name, provider_name) for model_name, provider_name in all_models if provider_name.lower() == 'google']
 
-                if provider_enum:
-                    service = LLMService(
-                        provider=provider_enum,
+                # Take first 2 models from each provider for comprehensive testing
+                models_to_test = (openai_models[:2] if openai_models else []) + (google_models[:2] if google_models else [])
+
+            for model_name, provider_name in models_to_test:
+                try:
+                    print(f"\nTesting model: {model_name} (provider: {provider_name})")
+
+                    # Create LLM model using factory
+                    from src.llm.models import LLMFactory
+                    model = LLMFactory.create_model(
+                        model_name=model_name,
                         api_key=api_key,
                         base_url=base_url
                     )
 
-                    await self.test_llm_service_integration(service, f"{provider_name} Service")
-                    await self.test_performance_characteristics(service.llm_model, f"{provider_name} Model")
-                    await self.test_error_handling(service.llm_model, f"{provider_name} Model")
+                    # Create LLM service with this model
+                    from src.config.model_config import LLMProvider
+                    provider_enum = None
+                    if provider_name.lower() == 'openai':
+                        provider_enum = LLMProvider.OPENAI
+                    elif provider_name.lower() == 'google':
+                        provider_enum = LLMProvider.GOOGLE
 
-            except Exception as e:
-                self.log_test(f"{provider_name} Model Creation", False, f"Error: {str(e)}")
+                    if provider_enum:
+                        service = LLMService(
+                            provider=provider_enum,
+                            model_name=model_name,
+                            api_key=api_key,
+                            base_url=base_url
+                        )
+
+                        await self.test_llm_service_integration(service, f"{model_name}")
+                        await self.test_performance_characteristics(service.llm_model, f"{model_name}")
+                        await self.test_error_handling(service.llm_model, f"{model_name}")
+                    else:
+                        print(f"Unknown provider: {provider_name} for model: {model_name}")
+
+                except Exception as e:
+                    self.log_test(f"{model_name} Model Creation", False, f"Error: {str(e)}")
+
+        except Exception as e:
+            print(f"Could not get available models: {e}")
+            print("Falling back to testing default models...")
+
+            # Fallback to testing default models
+            default_models = ['gpt-4', 'gemini-pro']
+            for model_name in default_models:
+                try:
+                    print(f"\nTesting fallback model: {model_name}")
+
+                    # Determine provider from model name
+                    if 'gpt' in model_name.lower():
+                        from src.config.model_config import LLMProvider
+                        service = LLMService(
+                            provider=LLMProvider.OPENAI,
+                            model_name=model_name,
+                            api_key=api_key,
+                            base_url=base_url
+                        )
+                    elif 'gemini' in model_name.lower():
+                        from src.config.model_config import LLMProvider
+                        service = LLMService(
+                            provider=LLMProvider.GOOGLE,
+                            model_name=model_name,
+                            api_key=api_key,
+                            base_url=base_url
+                        )
+                    else:
+                        continue
+
+                    await self.test_llm_service_integration(service, f"{model_name}")
+                    await self.test_performance_characteristics(service.llm_model, f"{model_name}")
+                    await self.test_error_handling(service.llm_model, f"{model_name}")
+
+                except Exception as fallback_error:
+                    self.log_test(f"{model_name} Fallback Test", False, f"Error: {str(fallback_error)}")
 
     def print_summary(self):
         """Print test summary"""
