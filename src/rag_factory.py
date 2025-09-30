@@ -103,6 +103,13 @@ class RAGSystemFactory:
         # Set RAG system reference in agent system if it exists
         if agent_system:
             agent_system.rag_system = rag_system
+            # Also update the rag_system reference in the agent's tools
+            if hasattr(agent_system, 'general_agent'):
+                agent_system.general_agent.rag_system = rag_system
+                # Update tools' rag_system references
+                for tool in agent_system.general_agent.tools:
+                    if hasattr(tool, 'rag_system'):
+                        tool.rag_system = rag_system
 
         logger.info("RAG system created with dependency injection")
         return rag_system
