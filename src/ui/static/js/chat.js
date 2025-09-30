@@ -278,6 +278,8 @@ function getQueryModes() {
                                 </h6>
                                 <p class="card-text small">${mode.description}</p>
                                 <small class="text-muted"><strong>Use case:</strong> ${mode.use_case}</small>
+                                ${mode.workflow ? `<hr class="my-2"><small class="text-muted"><strong>Workflow:</strong><br>${mode.workflow}</small>` : ''}
+                                ${mode.tools ? `<hr class="my-2"><small class="text-muted"><strong>Tools:</strong><ul class="mb-0 ps-3">${mode.tools.map(tool => `<li>${tool}</li>`).join('')}</ul></small>` : ''}
                             </div>
                         </div>
                     </div>

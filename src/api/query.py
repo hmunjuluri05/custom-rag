@@ -147,7 +147,9 @@ def create_query_router(rag_system):
                         "mode": QueryMode.AGENTIC_RAG.value,
                         "description": "Agentic RAG with multi-step reasoning and specialized tools",
                         "use_case": "Complex queries requiring multi-step reasoning and analysis",
-                        "available": bool(hasattr(rag_system, 'agent_system') and rag_system.agent_system)
+                        "available": bool(hasattr(rag_system, 'agent_system') and rag_system.agent_system),
+                        "workflow": "Uses ReAct (Reasoning + Acting) pattern: analyzes question → selects appropriate tool → retrieves information → reasons about results → provides comprehensive answer",
+                        "tools": ["Knowledge Search Tool (searches vector database)", "Document Analysis Tool (analyzes document structure and metadata)"]
                     }
                 ],
                 "agent_system": agent_info,
