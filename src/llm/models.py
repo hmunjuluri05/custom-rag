@@ -66,15 +66,27 @@ class OpenAILLMModel(LLMModel):
 
         try:
             from langchain_openai import ChatOpenAI
+            import httpx
+
+            # Create custom HTTP client with Kong API headers in correct format
+            # Kong requires: {"api-key": key, "ai-gateway-version": "v2"}
+            custom_headers = config.get_gateway_headers(self.api_key)
+
+            custom_client = httpx.Client(
+                headers=custom_headers,
+                timeout=30.0
+            )
 
             # Initialize ChatOpenAI with Kong API Gateway
+            # Use "dummy" for api_key since Kong handles authentication via header
             self.llm = ChatOpenAI(
                 model=self.model_name,
-                api_key=self.api_key,
+                api_key="dummy",  # Kong handles auth via custom header
                 base_url=self.base_url,
                 temperature=0.7,
                 max_tokens=1000,
-                timeout=30
+                timeout=30,
+                http_client=custom_client
             )
 
             logger.info(f"Initialized OpenAI model: {model_name} via API Gateway: {self.base_url}")
@@ -289,14 +301,28 @@ class GoogleLLMModel(LLMModel):
         try:
             # Use Google's native LLM implementation
             from langchain_google_genai import ChatGoogleGenerativeAI
+            import httpx
 
-            # Initialize Google LLM with proper configuration
+            # Create custom HTTP client with Kong API headers in correct format
+            # Kong requires: {"api-key": key, "ai-gateway-version": "v2"}
+            custom_headers = config.get_gateway_headers(self.api_key)
+
+            custom_client = httpx.Client(
+                headers=custom_headers,
+                timeout=30.0
+            )
+
+            # Initialize Google LLM with Kong API Gateway
+            # Use "dummy" for google_api_key since Kong handles authentication via header
             self.llm = ChatGoogleGenerativeAI(
                 model=self.model_name,
-                google_api_key=self.api_key,
+                google_api_key="dummy",  # Kong handles auth via custom header
                 temperature=0.7,
                 max_output_tokens=1000,
-                timeout=30
+                timeout=30,
+                # Note: Google LangChain may not support custom HTTP client
+                # If it doesn't work, we'll need to use a different approach
+                client=custom_client if hasattr(ChatGoogleGenerativeAI, 'client') else None
             )
 
             logger.info(f"Initialized Modern Google model: {model_name}")

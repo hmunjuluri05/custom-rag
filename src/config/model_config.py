@@ -245,6 +245,41 @@ class ModelConfigLoader:
         """Get list of supported LLM providers"""
         return self._config.get('validation', {}).get('llm_providers', ['openai', 'google'])
 
+    def get_gateway_api_key_header(self) -> str:
+        """Get the header name for Kong API key authentication"""
+        return self._config.get('gateway', {}).get('api_key_header', 'api-key')
+
+    def get_gateway_version_header(self) -> str:
+        """Get the header name for Kong gateway version"""
+        return self._config.get('gateway', {}).get('gateway_version_header', 'ai-gateway-version')
+
+    def get_gateway_version(self) -> str:
+        """Get the Kong gateway version"""
+        return self._config.get('gateway', {}).get('gateway_version', 'v2')
+
+    def get_gateway_headers(self, api_key: str) -> Dict[str, str]:
+        """Get Kong API Gateway headers in the correct format"""
+        if not api_key:
+            return {}
+
+        return {
+            self.get_gateway_api_key_header(): api_key,
+            self.get_gateway_version_header(): self.get_gateway_version()
+        }
+
+    def is_gateway_auth_enabled(self) -> bool:
+        """Check if gateway authentication is enabled"""
+        return self._config.get('gateway', {}).get('use_gateway_auth', True)
+
+    def get_gateway_config(self) -> Dict[str, Any]:
+        """Get complete gateway configuration"""
+        return self._config.get('gateway', {
+            'api_key_header': 'api-key',
+            'gateway_version_header': 'ai-gateway-version',
+            'gateway_version': 'v2',
+            'use_gateway_auth': True
+        })
+
 # Global config loader instance
 _config_loader = None
 

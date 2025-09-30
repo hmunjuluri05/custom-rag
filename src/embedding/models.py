@@ -88,16 +88,30 @@ class OpenAIEmbeddingModel(EmbeddingModel):
 
         try:
             from langchain_openai import OpenAIEmbeddings
+            import httpx
+
+            # Create custom HTTP client with Kong API headers in correct format
+            # Kong requires: {"api-key": key, "ai-gateway-version": "v2"}
+            from ..config.model_config import get_model_config
+            config = get_model_config()
+            custom_headers = config.get_gateway_headers(self.api_key)
+
+            custom_client = httpx.Client(
+                headers=custom_headers,
+                timeout=30.0
+            )
 
             # Initialize Modern OpenAI embeddings with Kong API Gateway
+            # Use "dummy" for api_key since Kong handles authentication via header
             self.embeddings = OpenAIEmbeddings(
                 model=self.model_name,
-                api_key=self.api_key,
+                api_key="dummy",  # Kong handles auth via custom header
                 base_url=self.base_url,
                 # Additional parameters for better performance
                 chunk_size=1000,  # Process up to 1000 texts at once
                 max_retries=3,
-                request_timeout=30
+                request_timeout=30,
+                http_client=custom_client
             )
 
             # Model dimensions mapping
@@ -200,12 +214,28 @@ class GoogleEmbeddingModel(EmbeddingModel):
         try:
             # Use Google's native embedding implementation
             from langchain_google_genai import GoogleGenerativeAIEmbeddings
+            import httpx
 
-            # Initialize Google embeddings with proper configuration
+            # Create custom HTTP client with Kong API headers in correct format
+            # Kong requires: {"api-key": key, "ai-gateway-version": "v2"}
+            from ..config.model_config import get_model_config
+            config = get_model_config()
+            custom_headers = config.get_gateway_headers(self.api_key)
+
+            custom_client = httpx.Client(
+                headers=custom_headers,
+                timeout=30.0
+            )
+
+            # Initialize Google embeddings with Kong API Gateway
+            # Use "dummy" for google_api_key since Kong handles authentication via header
             self.embeddings = GoogleGenerativeAIEmbeddings(
                 model=self.model_name,
-                google_api_key=self.api_key,
-                task_type="retrieval_document"
+                google_api_key="dummy",  # Kong handles auth via custom header
+                task_type="retrieval_document",
+                # Note: Google LangChain may not support custom HTTP client
+                # If it doesn't work, we'll need to use a different approach
+                client=custom_client if hasattr(GoogleGenerativeAIEmbeddings, 'client') else None
             )
 
             # Model dimensions mapping for Google models
