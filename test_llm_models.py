@@ -369,7 +369,6 @@ class LLMModelTester:
 
         # Check for environment variables
         api_key = os.getenv('API_KEY')
-        base_url = os.getenv('BASE_URL')
 
         if not api_key:
             print("WARNING: No API_KEY found in environment. Skipping real model tests.")

@@ -329,7 +329,9 @@ class VectorStore(IVectorStore):
                     'content': result.get('content', ''),
                     'metadata': result.get('metadata', {}),
                     'id': result.get('id', ''),
-                    'distance': result.get('distance', 0)
+                    'distance': result.get('distance', 0),
+                    'similarity_score': result.get('similarity_score', 0),
+                    'relevance_score': result.get('relevance_score', 0)
                 })
 
             return formatted_results

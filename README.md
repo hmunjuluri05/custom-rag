@@ -42,13 +42,13 @@ cp .env.example .env
 
 Edit `.env` file:
 ```bash
-# Required: Your API key
-API_KEY=your_openai_or_google_api_key
+# Required: Your API key (for Kong Gateway or direct provider access)
+API_KEY=your_api_key_here
 
-# Required for enterprise: API Gateway URL
+# Optional: Gateway Base URL (models.yaml defines specific gateway paths)
 BASE_URL=https://api.your-gateway.com
 
-# Optional: Default models
+# Optional: Default models (can override YAML config defaults)
 DEFAULT_LLM_PROVIDER=openai
 DEFAULT_LLM_MODEL=gpt-4
 DEFAULT_EMBEDDING_MODEL=text-embedding-3-small
@@ -146,11 +146,22 @@ curl -X POST "http://localhost:8000/api/upload/" \
 ## Configuration
 
 ### Environment Variables
-- `API_KEY`: Your OpenAI or Google API key (required)
-- `BASE_URL`: API Gateway URL (required for enterprise deployments)
-- `DEFAULT_LLM_PROVIDER`: openai or google (default: openai)
-- `DEFAULT_LLM_MODEL`: Model name (default: gpt-4)
-- `DEFAULT_EMBEDDING_MODEL`: Embedding model (default: text-embedding-3-small)
+- `API_KEY`: Your API key for Kong Gateway or direct provider access (required)
+- `BASE_URL`: Optional gateway base URL (models.yaml defines specific paths)
+- `DEFAULT_LLM_PROVIDER`: openai or google (defaults from config/models.yaml)
+- `DEFAULT_LLM_MODEL`: Model name (defaults from config/models.yaml)
+- `DEFAULT_EMBEDDING_MODEL`: Embedding model (defaults from config/models.yaml)
+
+### Configuration Files
+- `config/models.yaml`: Centralized model configuration with gateway URLs and Kong headers
+- `.env`: Environment variables for API keys and optional overrides
+
+### Kong API Gateway Support
+The system supports Kong API Gateway with the correct header format:
+- **Headers**: `{"api-key": "your_key", "ai-gateway-version": "v2"}`
+- **Configuration**: Automatically handled via `config/models.yaml`
+- **Models**: All LLM and embedding models support Kong Gateway routing
+- **Fallback**: Direct provider URLs when BASE_URL is not configured
 
 ### File Support
 - **PDF**: Text extraction with layout preservation
@@ -188,20 +199,20 @@ from src.rag_system import create_rag_system
 rag_system = create_rag_system(collection_name="docs")
 
 # Factory pattern with dependency injection
-from src.dependency_injection import RAGSystemFactory
+from src.rag_factory import RAGSystemFactory
 rag_system = RAGSystemFactory.create_default_rag_system(
     embedding_model="text-embedding-3-large"
 )
 
 # Builder pattern for complex configurations
-from src.dependency_injection import RAGSystemBuilder
+from src.rag_factory import RAGSystemBuilder
 rag_system = (RAGSystemBuilder()
               .with_config(collection_name="custom")
               .build())
 
-# Dependency injection for testing (interfaces-based)
-from src.rag_system_di import RAGSystemDI
-rag_system = RAGSystemDI(
+# Custom dependency injection for testing (interfaces-based)
+from src.rag_factory import RAGSystemFactory
+rag_system = RAGSystemFactory.create_custom_rag_system(
     document_processor=mock_processor,
     vector_store=mock_vector_store,
     llm_service=mock_llm_service

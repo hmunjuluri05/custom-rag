@@ -27,10 +27,10 @@ def validate_environment():
 
     # Validate optional but recommended variables
     if not os.getenv('DEFAULT_LLM_PROVIDER'):
-        logging.warning("DEFAULT_LLM_PROVIDER not set, using default 'openai'")
+        logging.warning("DEFAULT_LLM_PROVIDER not set, using default from config")
 
     if not os.getenv('DEFAULT_EMBEDDING_MODEL'):
-        logging.warning("DEFAULT_EMBEDDING_MODEL not set, using default 'text-embedding-3-small'")
+        logging.warning("DEFAULT_EMBEDDING_MODEL not set, using default from config")
 
     base_url = os.getenv('BASE_URL')
     if base_url:
@@ -143,7 +143,6 @@ app.include_router(query_router, prefix="/api", tags=["query"])
 app.include_router(system_router, prefix="/api", tags=["system"])
 
 # Include UI routers
-# app.include_router(upload_ui.get_router(), tags=["ui"])  # Temporarily commented out
 app.include_router(chat_ui.get_router(), tags=["ui"])
 
 # Connect chat UI to chat service
