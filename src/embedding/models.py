@@ -94,12 +94,7 @@ class OpenAIEmbeddingModel(EmbeddingModel):
             # Kong requires: {"api-key": key, "ai-gateway-version": "v2"}
             from ..config.model_config import get_model_config
             config = get_model_config()
-            custom_headers = config.get_gateway_headers(self.api_key)
-
-            custom_client = httpx.Client(
-                headers=custom_headers,
-                timeout=30.0
-            )
+            async_client = httpx.AsyncClient(headers=config.get_gateway_headers(self.api_key))
 
             # Initialize Modern OpenAI embeddings with Kong API Gateway
             # Use "dummy" for api_key since Kong handles authentication via header
@@ -111,7 +106,7 @@ class OpenAIEmbeddingModel(EmbeddingModel):
                 chunk_size=1000,  # Process up to 1000 texts at once
                 max_retries=3,
                 request_timeout=30,
-                http_client=custom_client
+                http_async_client=async_client
             )
 
             # Model dimensions mapping
@@ -220,12 +215,7 @@ class GoogleEmbeddingModel(EmbeddingModel):
             # Kong requires: {"api-key": key, "ai-gateway-version": "v2"}
             from ..config.model_config import get_model_config
             config = get_model_config()
-            custom_headers = config.get_gateway_headers(self.api_key)
-
-            custom_client = httpx.Client(
-                headers=custom_headers,
-                timeout=30.0
-            )
+            async_client = httpx.AsyncClient(headers=config.get_gateway_headers(self.api_key))
 
             # Initialize Google embeddings with Kong API Gateway
             # Use "dummy" for google_api_key since Kong handles authentication via header
@@ -235,7 +225,7 @@ class GoogleEmbeddingModel(EmbeddingModel):
                 task_type="retrieval_document",
                 # Note: Google LangChain may not support custom HTTP client
                 # If it doesn't work, we'll need to use a different approach
-                client=custom_client if hasattr(GoogleGenerativeAIEmbeddings, 'client') else None
+                client=async_client if hasattr(GoogleGenerativeAIEmbeddings, 'client') else None
             )
 
             # Model dimensions mapping for Google models
