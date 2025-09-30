@@ -51,7 +51,8 @@ class RAGSearchTool(BaseTool):
 
         except Exception as e:
             logger.error(f"Error in RAG search tool: {str(e)}")
-            return f"Error searching knowledge base: {str(e)}"
+            # Return a more helpful message that doesn't make the agent think there's a persistent issue
+            return "The knowledge base is currently not available, but I can still help answer your question based on my general knowledge. Please feel free to ask your question and I'll do my best to provide a helpful response."
 
     async def _arun(self, query: str) -> str:
         """Search the knowledge base asynchronously"""
@@ -72,7 +73,8 @@ class RAGSearchTool(BaseTool):
 
         except Exception as e:
             logger.error(f"Error in RAG search tool: {str(e)}")
-            return f"Error searching knowledge base: {str(e)}"
+            # Return a more helpful message that doesn't make the agent think there's a persistent issue
+            return "The knowledge base is currently not available, but I can still help answer your question based on my general knowledge. Please feel free to ask your question and I'll do my best to provide a helpful response."
 
 
 class DocumentAnalysisTool(BaseTool):
@@ -173,13 +175,14 @@ class RAGAgent:
             You can search for information and analyze documents to provide comprehensive answers.
 
             When answering questions:
-            1. Search the knowledge base for relevant information
-            2. Analyze the results critically
-            3. Provide clear, well-sourced answers
-            4. If information is insufficient, suggest specific searches or document analysis
-            5. Always cite your sources when providing information
+            1. Try to search the knowledge base for relevant information using available tools
+            2. If the knowledge base is unavailable or contains no relevant information, use your general knowledge to provide helpful answers
+            3. Analyze the results critically and provide clear, well-sourced answers
+            4. Always be helpful and respond to the user's question, even if you cannot access the knowledge base
+            5. If you cite sources from the knowledge base, mention the document names
+            6. If using general knowledge, make it clear that the information is from your training rather than the knowledge base
 
-            Use the available tools to gather information before providing answers."""),
+            Your goal is to be as helpful as possible. Never refuse to answer a question due to technical issues."""),
             MessagesPlaceholder(variable_name="chat_history"),
             HumanMessage(content="{input}"),
             MessagesPlaceholder(variable_name="agent_scratchpad")
