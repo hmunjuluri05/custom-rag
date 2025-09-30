@@ -1,9 +1,9 @@
 from typing import Any, Dict, List, Optional, Union
 import logging
-from langchain.agents import AgentExecutor, create_openai_functions_agent
+from langchain.agents import AgentExecutor, create_react_agent
 from langchain.schema import BaseMessage, HumanMessage, SystemMessage
 from langchain.tools.base import BaseTool
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.prompts import PromptTemplate
 from langchain.memory import ConversationBufferMemory
 from pydantic import Field
 import asyncio
@@ -169,24 +169,39 @@ class RAGAgent:
             DocumentAnalysisTool(rag_system)
         ]
 
-        # Create prompt template
-        self.prompt = ChatPromptTemplate.from_messages([
-            SystemMessage(content="""You are an intelligent research assistant with access to a knowledge base of documents.
-            You can search for information and analyze documents to provide comprehensive answers.
+        # Create ReAct prompt template
+        self.prompt = PromptTemplate.from_template("""You are an intelligent research assistant with access to a knowledge base of documents.
+You can search for information and analyze documents to provide comprehensive answers.
 
-            When answering questions:
-            1. Try to search the knowledge base for relevant information using available tools
-            2. If the knowledge base is unavailable or contains no relevant information, use your general knowledge to provide helpful answers
-            3. Analyze the results critically and provide clear, well-sourced answers
-            4. Always be helpful and respond to the user's question, even if you cannot access the knowledge base
-            5. If you cite sources from the knowledge base, mention the document names
-            6. If using general knowledge, make it clear that the information is from your training rather than the knowledge base
+When answering questions:
+1. Try to search the knowledge base for relevant information using available tools
+2. If the knowledge base is unavailable or contains no relevant information, use your general knowledge to provide helpful answers
+3. Analyze the results critically and provide clear, well-sourced answers
+4. Always be helpful and respond to the user's question, even if you cannot access the knowledge base
+5. If you cite sources from the knowledge base, mention the document names
+6. If using general knowledge, make it clear that the information is from your training rather than the knowledge base
 
-            Your goal is to be as helpful as possible. Never refuse to answer a question due to technical issues."""),
-            MessagesPlaceholder(variable_name="chat_history"),
-            HumanMessage(content="{input}"),
-            MessagesPlaceholder(variable_name="agent_scratchpad")
-        ])
+Your goal is to be as helpful as possible. Never refuse to answer a question due to technical issues.
+
+You have access to the following tools:
+
+{tools}
+
+Use the following format:
+
+Question: the input question you must answer
+Thought: you should always think about what to do
+Action: the action to take, should be one of [{tool_names}]
+Action Input: the input to the action
+Observation: the result of the action
+... (this Thought/Action/Action Input/Observation can repeat N times)
+Thought: I now know the final answer
+Final Answer: the final answer to the original input question
+
+Begin!
+
+Question: {input}
+Thought:{agent_scratchpad}""")
 
         # Initialize memory
         self.memory = ConversationBufferMemory(
@@ -205,17 +220,17 @@ class RAGAgent:
             else:
                 raise ValueError("LLM service does not have compatible LangChain LLM")
 
-            # Create the agent
-            agent = create_openai_functions_agent(llm, self.tools, self.prompt)
+            # Create the ReAct agent (works with any LLM, not just OpenAI)
+            agent = create_react_agent(llm, self.tools, self.prompt)
 
             # Create agent executor
             agent_executor = AgentExecutor(
                 agent=agent,
                 tools=self.tools,
-                memory=self.memory,
                 verbose=True,
                 handle_parsing_errors=True,
-                max_iterations=5
+                max_iterations=5,
+                return_intermediate_steps=True
             )
 
             return agent_executor
@@ -227,28 +242,59 @@ class RAGAgent:
     async def query(self, question: str) -> Dict[str, Any]:
         """Process a query using the RAG agent"""
         try:
+            logger.info(f"Starting RAG agent query for: {question}")
             agent_executor = await self.create_agent_executor()
+            logger.info("Agent executor created successfully")
 
             # Execute the agent
+            logger.info("Invoking agent executor...")
             result = await agent_executor.ainvoke({"input": question})
+            logger.info(f"Agent execution completed. Result keys: {result.keys()}")
+
+            # Extract tools used from intermediate steps if available
+            tools_used = []
+            if "intermediate_steps" in result:
+                tools_used = [step[0].tool for step in result["intermediate_steps"]]
 
             return {
                 "answer": result["output"],
                 "agent_reasoning": "Used intelligent reasoning with knowledge base tools",
                 "query": question,
-                "tools_used": [tool.name for tool in self.tools]
+                "tools_used": tools_used if tools_used else [tool.name for tool in self.tools]
             }
 
         except Exception as e:
-            logger.error(f"Error in RAG agent query: {str(e)}")
-            # Provide a helpful response instead of exposing technical errors
-            return {
-                "answer": f"I'd be happy to help answer your question about '{question}'. While I'm currently unable to access the knowledge base, I can provide general information based on my training. Could you please rephrase your question or ask for specific aspects you'd like to know about?",
-                "agent_reasoning": "Unable to access knowledge base, offering general assistance",
-                "query": question,
-                "tools_used": [],
-                "fallback": True
-            }
+            logger.error(f"Error in RAG agent query: {str(e)}", exc_info=True)
+            # Fall back to using the LLM directly to answer with general knowledge
+            try:
+                logger.info("Agent executor failed, falling back to direct LLM query")
+
+                # Use the LLM service directly to answer the question
+                fallback_prompt = f"""The knowledge base is currently unavailable, but please answer the following question using your general knowledge:
+
+{question}
+
+Provide a clear, helpful answer based on your training. If you use general knowledge rather than specific documents, make that clear in your response."""
+
+                llm_response = await self.llm_service.generate_response(fallback_prompt)
+
+                return {
+                    "answer": llm_response,
+                    "agent_reasoning": "Knowledge base unavailable, answered using general knowledge",
+                    "query": question,
+                    "tools_used": [],
+                    "fallback": True
+                }
+            except Exception as fallback_error:
+                logger.error(f"Fallback LLM query also failed: {str(fallback_error)}")
+                return {
+                    "answer": f"I apologize, but I'm currently unable to process your question due to technical issues. Please try again later or contact support if the problem persists.",
+                    "agent_reasoning": "Both agent and fallback failed",
+                    "query": question,
+                    "tools_used": [],
+                    "fallback": True,
+                    "error": str(e)
+                }
 
     async def query_stream(self, question: str):
         """Stream the agent's reasoning and response"""
