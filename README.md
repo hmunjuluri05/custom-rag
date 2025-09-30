@@ -137,54 +137,82 @@ The system supports Kong API Gateway with the correct header format:
 ## Architecture
 
 ### System Design
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Web Interface                            │
-│  ┌────────────────┐              ┌─────────────────────────┐   │
-│  │ Chat Interface │              │    Admin Panel          │   │
-│  │  (WebSocket)   │              │  (Upload & Configure)   │   │
-│  └────────┬───────┘              └───────────┬─────────────┘   │
-└───────────┼────────────────────────────────────┼─────────────────┘
-            │                                    │
-            └────────────────┬───────────────────┘
-                             ▼
-            ┌────────────────────────────────────────┐
-            │         FastAPI Backend                │
-            │  ┌──────────────────────────────────┐ │
-            │  │      Query Processing Layer       │ │
-            │  │  - Vector Search                  │ │
-            │  │  - LLM Response                   │ │
-            │  │  - Agentic RAG                    │ │
-            │  └──────────────────────────────────┘ │
-            └────────────────┬───────────────────────┘
-                             ▼
-            ┌────────────────────────────────────────┐
-            │         RAG System Core                │
-            │  ┌──────────────┐  ┌───────────────┐  │
-            │  │   Document   │  │   Chunking    │  │
-            │  │  Processor   │  │   Strategies  │  │
-            │  └──────────────┘  └───────────────┘  │
-            └────────────────┬───────────────────────┘
-                             ▼
-     ┌───────────────────────┴───────────────────────┐
-     ▼                                               ▼
-┌─────────────────┐                      ┌──────────────────┐
-│   Vector Store  │                      │   LLM Service    │
-│   (ChromaDB)    │                      │   (LangChain)    │
-│                 │                      │                  │
-│ - Similarity    │                      │ - OpenAI GPT     │
-│   Search        │                      │ - Google Gemini  │
-│ - Document      │                      │                  │
-│   Storage       │                      │ - Agentic Tools  │
-└────────┬────────┘                      └────────┬─────────┘
-         │                                        │
-         ▼                                        ▼
-┌─────────────────┐                      ┌──────────────────┐
-│ Embedding Model │                      │  Kong Gateway    │
-│                 │                      │  (Optional)      │
-│ - OpenAI        │                      │                  │
-│ - Google        │                      │ - API Routing    │
-└─────────────────┘                      └──────────────────┘
+
+```mermaid
+graph TB
+    subgraph "Frontend Layer"
+        A[Chat Interface<br/>WebSocket]
+        B[Admin Panel<br/>Upload & Config]
+    end
+
+    subgraph "API Layer"
+        C[FastAPI Backend<br/>Async REST API]
+    end
+
+    subgraph "Processing Layer"
+        D[Query Router]
+        E[Vector Search Mode]
+        F[LLM Response Mode]
+        G[Agentic RAG Mode]
+    end
+
+    subgraph "RAG Core"
+        H[Document Processor<br/>PDF, DOCX, XLSX, TXT]
+        I[Chunking Engine<br/>9 Strategies]
+        J[RAG Orchestrator]
+    end
+
+    subgraph "Storage & Retrieval"
+        K[(ChromaDB<br/>Vector Store)]
+        L[Embedding Models<br/>OpenAI, Google]
+    end
+
+    subgraph "Intelligence Layer"
+        M[LLM Service<br/>LangChain]
+        N[OpenAI GPT-4<br/>GPT-3.5]
+        O[Google Gemini<br/>Pro, Flash]
+        P[Agent Tools<br/>Knowledge Search<br/>Document Analysis]
+    end
+
+    subgraph "External Services"
+        Q[Kong API Gateway<br/>Optional]
+    end
+
+    A --> C
+    B --> C
+    C --> D
+    D --> E & F & G
+    E --> J
+    F --> J
+    G --> P
+    P --> J
+    B --> H
+    H --> I
+    I --> K
+    J --> K
+    J --> M
+    K <--> L
+    M --> N & O
+    N & O <--> Q
+    L <--> Q
+
+    style A fill:#4FC3F7,stroke:#0288D1,stroke-width:2px,color:#000
+    style B fill:#4FC3F7,stroke:#0288D1,stroke-width:2px,color:#000
+    style C fill:#FFB74D,stroke:#F57C00,stroke-width:2px,color:#000
+    style D fill:#BA68C8,stroke:#7B1FA2,stroke-width:2px,color:#000
+    style E fill:#BA68C8,stroke:#7B1FA2,stroke-width:2px,color:#000
+    style F fill:#BA68C8,stroke:#7B1FA2,stroke-width:2px,color:#000
+    style G fill:#BA68C8,stroke:#7B1FA2,stroke-width:2px,color:#000
+    style H fill:#81C784,stroke:#388E3C,stroke-width:2px,color:#000
+    style I fill:#81C784,stroke:#388E3C,stroke-width:2px,color:#000
+    style J fill:#81C784,stroke:#388E3C,stroke-width:2px,color:#000
+    style K fill:#FFD54F,stroke:#F57F17,stroke-width:2px,color:#000
+    style L fill:#FFD54F,stroke:#F57F17,stroke-width:2px,color:#000
+    style M fill:#F06292,stroke:#C2185B,stroke-width:2px,color:#000
+    style N fill:#F06292,stroke:#C2185B,stroke-width:2px,color:#000
+    style O fill:#F06292,stroke:#C2185B,stroke-width:2px,color:#000
+    style P fill:#F06292,stroke:#C2185B,stroke-width:2px,color:#000
+    style Q fill:#BDBDBD,stroke:#616161,stroke-width:2px,color:#000
 ```
 
 **Technology Stack:**
