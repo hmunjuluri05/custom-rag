@@ -95,7 +95,14 @@ class OpenAILLMModel(LLMModel):
 
         system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
         Use only the information from the context to answer questions. If the context doesn't contain relevant information,
-        say so clearly. Be concise and accurate."""
+        say so clearly.
+
+        FORMATTING INSTRUCTIONS:
+        - Structure your responses with proper paragraphs (use line breaks between different topics)
+        - Use numbered lists (1., 2., 3.) when presenting multiple points
+        - Use bullet points (-) for sub-items or features
+        - Add line breaks after each paragraph for better readability
+        - Make your responses well-organized and easy to read"""
 
         user_prompt = f"""Context from documents:
 {context}
@@ -157,7 +164,14 @@ Please answer the question based only on the provided context."""
 
         system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
         Use only the information from the context to answer questions. If the context doesn't contain relevant information,
-        say so clearly. Be concise and accurate."""
+        say so clearly.
+
+        FORMATTING INSTRUCTIONS:
+        - Structure your responses with proper paragraphs (use line breaks between different topics)
+        - Use numbered lists (1., 2., 3.) when presenting multiple points
+        - Use bullet points (-) for sub-items or features
+        - Add line breaks after each paragraph for better readability
+        - Make your responses well-organized and easy to read"""
 
         user_prompt = f"""Context from documents:
 {context}
@@ -350,7 +364,14 @@ class GoogleLLMModel(LLMModel):
 
         system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
         Use only the information from the context to answer questions. If the context doesn't contain relevant information,
-        say so clearly. Be concise and accurate."""
+        say so clearly.
+
+        FORMATTING INSTRUCTIONS:
+        - Structure your responses with proper paragraphs (use line breaks between different topics)
+        - Use numbered lists (1., 2., 3.) when presenting multiple points
+        - Use bullet points (-) for sub-items or features
+        - Add line breaks after each paragraph for better readability
+        - Make your responses well-organized and easy to read"""
 
         user_prompt = f"""Context from documents:
 {context}
@@ -380,7 +401,14 @@ Please answer the question based only on the provided context."""
 
         system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
         Use only the information from the context to answer questions. If the context doesn't contain relevant information,
-        say so clearly. Be concise and accurate."""
+        say so clearly.
+
+        FORMATTING INSTRUCTIONS:
+        - Structure your responses with proper paragraphs (use line breaks between different topics)
+        - Use numbered lists (1., 2., 3.) when presenting multiple points
+        - Use bullet points (-) for sub-items or features
+        - Add line breaks after each paragraph for better readability
+        - Make your responses well-organized and easy to read"""
 
         user_prompt = f"""Context from documents:
 {context}

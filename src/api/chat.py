@@ -1,33 +1,7 @@
 import logging
-import re
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
-
-def format_response_text(text: str) -> str:
-    """Format response text for better readability"""
-    if not text:
-        return text
-
-    # Split into sentences and paragraphs for better readability
-    formatted_text = text.strip()
-
-    # Add line breaks after periods followed by capital letters (new sentences)
-    # But be careful with numbered lists
-    formatted_text = re.sub(r'(\.)(\s+)([A-Z][^0-9])', r'\1\n\n\3', formatted_text)
-
-    # Add line breaks after colons followed by capital letters (lists/explanations)
-    formatted_text = re.sub(r'(:)(\s+)([A-Z])', r'\1\n\2\3', formatted_text)
-
-    # Format numbered/bulleted lists - add line breaks before numbers
-    formatted_text = re.sub(r'(\.)(\s+)(\d+\.)', r'\1\n\n\3', formatted_text)
-    formatted_text = re.sub(r'(\w)(\s+)(\d+\.)', r'\1\n\n\3', formatted_text)
-    formatted_text = re.sub(r'(\w)(\s+)(- )', r'\1\n\n\3', formatted_text)
-
-    # Clean up multiple newlines
-    formatted_text = re.sub(r'\n{3,}', '\n\n', formatted_text)
-
-    return formatted_text.strip()
 
 class ChatService:
     """Service for handling chat query processing"""
@@ -79,11 +53,6 @@ class ChatService:
                     query_text=query,
                     agent_type=agent_type
                 )
-
-                # Format the response for better readability
-                if "response" in result:
-                    result["response"] = format_response_text(result["response"])
-
                 return result
 
             else:
@@ -93,11 +62,6 @@ class ChatService:
                     top_k=top_k,
                     document_filter=document_filter
                 )
-
-                # Format the response for better readability
-                if "response" in result:
-                    result["response"] = format_response_text(result["response"])
-
                 return result
 
         except Exception as e:
