@@ -432,6 +432,9 @@ class RAGSystem:
                 where_filter={"document_id": document_id}
             )
 
+            # Filter out the placeholder chunk used for storing original content metadata
+            chunks = [chunk for chunk in chunks if chunk.get("content") != "ORIGINAL_CONTENT_PLACEHOLDER"]
+
             # Sort by chunk index
             chunks.sort(key=lambda x: x["metadata"].get("chunk_index", 0))
 
