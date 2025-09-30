@@ -137,6 +137,57 @@ The system supports Kong API Gateway with the correct header format:
 ## Architecture
 
 ### System Design
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Web Interface                            │
+│  ┌────────────────┐              ┌─────────────────────────┐   │
+│  │ Chat Interface │              │    Admin Panel          │   │
+│  │  (WebSocket)   │              │  (Upload & Configure)   │   │
+│  └────────┬───────┘              └───────────┬─────────────┘   │
+└───────────┼────────────────────────────────────┼─────────────────┘
+            │                                    │
+            └────────────────┬───────────────────┘
+                             ▼
+            ┌────────────────────────────────────────┐
+            │         FastAPI Backend                │
+            │  ┌──────────────────────────────────┐ │
+            │  │      Query Processing Layer       │ │
+            │  │  - Vector Search                  │ │
+            │  │  - LLM Response                   │ │
+            │  │  - Agentic RAG                    │ │
+            │  └──────────────────────────────────┘ │
+            └────────────────┬───────────────────────┘
+                             ▼
+            ┌────────────────────────────────────────┐
+            │         RAG System Core                │
+            │  ┌──────────────┐  ┌───────────────┐  │
+            │  │   Document   │  │   Chunking    │  │
+            │  │  Processor   │  │   Strategies  │  │
+            │  └──────────────┘  └───────────────┘  │
+            └────────────────┬───────────────────────┘
+                             ▼
+     ┌───────────────────────┴───────────────────────┐
+     ▼                                               ▼
+┌─────────────────┐                      ┌──────────────────┐
+│   Vector Store  │                      │   LLM Service    │
+│   (ChromaDB)    │                      │   (LangChain)    │
+│                 │                      │                  │
+│ - Similarity    │                      │ - OpenAI GPT     │
+│   Search        │                      │ - Google Gemini  │
+│ - Document      │                      │                  │
+│   Storage       │                      │ - Agentic Tools  │
+└────────┬────────┘                      └────────┬─────────┘
+         │                                        │
+         ▼                                        ▼
+┌─────────────────┐                      ┌──────────────────┐
+│ Embedding Model │                      │  Kong Gateway    │
+│                 │                      │  (Optional)      │
+│ - OpenAI        │                      │                  │
+│ - Google        │                      │ - API Routing    │
+└─────────────────┘                      └──────────────────┘
+```
+
+**Technology Stack:**
 - **Backend**: FastAPI with async support
 - **AI Framework**: LangChain for model integration
 - **Vector Database**: ChromaDB for semantic search
