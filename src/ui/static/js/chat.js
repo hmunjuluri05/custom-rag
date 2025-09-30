@@ -142,7 +142,9 @@ function addMessageToChat(content, sender, sources = null, messageType = 'normal
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${sender}`;
 
-    let messageHtml = `<div>${content}</div>`;
+    // Convert line breaks to HTML for proper formatting
+    const formattedContent = content.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
+    let messageHtml = `<div><p>${formattedContent}</p></div>`;
 
     // Add sources if provided
     if (sources && sources.length > 0) {

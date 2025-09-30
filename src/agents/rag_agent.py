@@ -241,11 +241,13 @@ class RAGAgent:
 
         except Exception as e:
             logger.error(f"Error in RAG agent query: {str(e)}")
+            # Provide a helpful response instead of exposing technical errors
             return {
-                "answer": f"I encountered an error while processing your question: {str(e)}",
-                "agent_reasoning": "Error during agent execution",
+                "answer": f"I'd be happy to help answer your question about '{question}'. While I'm currently unable to access the knowledge base, I can provide general information based on my training. Could you please rephrase your question or ask for specific aspects you'd like to know about?",
+                "agent_reasoning": "Unable to access knowledge base, offering general assistance",
                 "query": question,
-                "tools_used": []
+                "tools_used": [],
+                "fallback": True
             }
 
     async def query_stream(self, question: str):

@@ -97,12 +97,21 @@ class OpenAILLMModel(LLMModel):
         Use only the information from the context to answer questions. If the context doesn't contain relevant information,
         say so clearly.
 
-        FORMATTING INSTRUCTIONS:
-        - Structure your responses with proper paragraphs (use line breaks between different topics)
+        CRITICAL FORMATTING REQUIREMENTS - YOU MUST FOLLOW THESE:
+        - Use TWO line breaks (\\n\\n) between different paragraphs or topics
         - Use numbered lists (1., 2., 3.) when presenting multiple points
         - Use bullet points (-) for sub-items or features
-        - Add line breaks after each paragraph for better readability
-        - Make your responses well-organized and easy to read"""
+        - Add line breaks after each main point for readability
+        - NEVER write everything as one big paragraph - break it up!
+        - Structure your response like this example:
+
+        Topic introduction paragraph.
+
+        1. First point with explanation
+
+        2. Second point with explanation
+
+        Final conclusion paragraph."""
 
         user_prompt = f"""Context from documents:
 {context}
@@ -166,12 +175,21 @@ Please answer the question based only on the provided context."""
         Use only the information from the context to answer questions. If the context doesn't contain relevant information,
         say so clearly.
 
-        FORMATTING INSTRUCTIONS:
-        - Structure your responses with proper paragraphs (use line breaks between different topics)
+        CRITICAL FORMATTING REQUIREMENTS - YOU MUST FOLLOW THESE:
+        - Use TWO line breaks (\\n\\n) between different paragraphs or topics
         - Use numbered lists (1., 2., 3.) when presenting multiple points
         - Use bullet points (-) for sub-items or features
-        - Add line breaks after each paragraph for better readability
-        - Make your responses well-organized and easy to read"""
+        - Add line breaks after each main point for readability
+        - NEVER write everything as one big paragraph - break it up!
+        - Structure your response like this example:
+
+        Topic introduction paragraph.
+
+        1. First point with explanation
+
+        2. Second point with explanation
+
+        Final conclusion paragraph."""
 
         user_prompt = f"""Context from documents:
 {context}
@@ -366,12 +384,21 @@ class GoogleLLMModel(LLMModel):
         Use only the information from the context to answer questions. If the context doesn't contain relevant information,
         say so clearly.
 
-        FORMATTING INSTRUCTIONS:
-        - Structure your responses with proper paragraphs (use line breaks between different topics)
+        CRITICAL FORMATTING REQUIREMENTS - YOU MUST FOLLOW THESE:
+        - Use TWO line breaks (\\n\\n) between different paragraphs or topics
         - Use numbered lists (1., 2., 3.) when presenting multiple points
         - Use bullet points (-) for sub-items or features
-        - Add line breaks after each paragraph for better readability
-        - Make your responses well-organized and easy to read"""
+        - Add line breaks after each main point for readability
+        - NEVER write everything as one big paragraph - break it up!
+        - Structure your response like this example:
+
+        Topic introduction paragraph.
+
+        1. First point with explanation
+
+        2. Second point with explanation
+
+        Final conclusion paragraph."""
 
         user_prompt = f"""Context from documents:
 {context}
@@ -403,12 +430,21 @@ Please answer the question based only on the provided context."""
         Use only the information from the context to answer questions. If the context doesn't contain relevant information,
         say so clearly.
 
-        FORMATTING INSTRUCTIONS:
-        - Structure your responses with proper paragraphs (use line breaks between different topics)
+        CRITICAL FORMATTING REQUIREMENTS - YOU MUST FOLLOW THESE:
+        - Use TWO line breaks (\\n\\n) between different paragraphs or topics
         - Use numbered lists (1., 2., 3.) when presenting multiple points
         - Use bullet points (-) for sub-items or features
-        - Add line breaks after each paragraph for better readability
-        - Make your responses well-organized and easy to read"""
+        - Add line breaks after each main point for readability
+        - NEVER write everything as one big paragraph - break it up!
+        - Structure your response like this example:
+
+        Topic introduction paragraph.
+
+        1. First point with explanation
+
+        2. Second point with explanation
+
+        Final conclusion paragraph."""
 
         user_prompt = f"""Context from documents:
 {context}
