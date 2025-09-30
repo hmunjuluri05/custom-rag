@@ -458,33 +458,38 @@ class EmbeddingModelFactory(IEmbeddingModelFactory):
 class EmbeddingService:
     """Service for managing Modern embeddings and similarity search"""
 
-    def __init__(self, model_name: str = None, api_key: str = None, base_url: str = None):
-        # Note: api_key and base_url are kept for backward compatibility but ignored
-        # Models handle their own configuration now
+    def __init__(self, provider: str = None, model_name: str = None):
+        # Models handle their own configuration
         from ..config.model_config import get_model_config
         config = get_model_config()
 
-        # Auto-detect provider from model name if not specified
-        provider = None
-        if model_name:
-            provider_enum = config.get_embedding_provider(model_name)
-            if provider_enum:
-                provider = provider_enum.value
-
         # Use defaults if not specified
-        if not model_name:
+        if model_name is None:
             model_name = config.get_default_embedding_model()
-
-        if not provider:
-            # Derive provider from the default model
+        if provider is None:
+            # Derive provider from default embedding model
             provider_enum = config.get_embedding_provider(model_name)
             if provider_enum:
                 provider = provider_enum.value
             else:
                 provider = 'openai'  # fallback default
 
-        self.model = EmbeddingModelFactory.create_model(provider=provider, model_name=model_name)
+        # Validate that we have valid provider and model
+        # If provider was specified but model wasn't, we still use the default embedding model
+        # If model was specified but provider wasn't, derive provider from model
+        if provider and not model_name:
+            model_name = config.get_default_embedding_model()
+        elif model_name and not provider:
+            # Derive provider from model name
+            provider_enum = config.get_embedding_provider(model_name)
+            if provider_enum:
+                provider = provider_enum.value
+            else:
+                provider = 'openai'  # fallback default
+
+        self.provider = provider
         self.model_name = model_name
+        self.model = EmbeddingModelFactory.create_model(provider=provider, model_name=model_name)
 
     async def encode_texts(self, texts: List[str], batch_size: int = 32) -> List[np.ndarray]:
         """Encode texts using Modern embeddings"""

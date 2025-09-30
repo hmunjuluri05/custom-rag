@@ -567,7 +567,6 @@ class EmbeddingModelTester:
 
         # Check for environment variables
         api_key = os.getenv('API_KEY')
-        base_url = os.getenv('BASE_URL')
 
         if not api_key:
             print("WARNING: No API_KEY found in environment. Skipping real model tests.")
@@ -618,9 +617,8 @@ class EmbeddingModelTester:
 
                     # Test service
                     service = EmbeddingService(
-                        model_name=model_name,
-                        api_key=api_key,
-                        base_url=base_url
+                        provider=provider,
+                        model_name=model_name
                     )
                     await self.test_embedding_service_integration(service, f"{model_name} Service")
 
