@@ -64,7 +64,7 @@ llm_models:
     supports_gateway: true
     gateway_url: "api/openai/v1"
     models:
-      gpt-3.5-turbo:
+      gpt-35-turbo:
         gateway_url: "api/openai/v1"
       gpt-4:
         gateway_url: "api/openai/v1"

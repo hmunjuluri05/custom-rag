@@ -1,8 +1,6 @@
-from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional, AsyncGenerator
+from abc import abstractmethod
+from typing import Dict, Any, Optional, AsyncGenerator
 import logging
-import os
-import asyncio
 from .interfaces.llm_service_interface import ILLMService
 from .interfaces.llm_model_interface import ILLMModel, ILLMModelFactory
 
@@ -70,23 +68,17 @@ class OpenAILLMModel(LLMModel):
 
             # Create custom HTTP client with Kong API headers in correct format
             # Kong requires: {"api-key": key, "ai-gateway-version": "v2"}
-            custom_headers = config.get_gateway_headers(self.api_key)
-
-            custom_client = httpx.Client(
-                headers=custom_headers,
-                timeout=30.0
-            )
+            async_client = httpx.AsyncClient(headers=config.get_gateway_headers(self.api_key))
 
             # Initialize ChatOpenAI with Kong API Gateway
             # Use "dummy" for api_key since Kong handles authentication via header
+            # Minimal configuration to avoid parameter conflicts
             self.llm = ChatOpenAI(
                 model=self.model_name,
                 api_key="dummy",  # Kong handles auth via custom header
                 base_url=self.base_url,
                 temperature=0.7,
-                max_tokens=1000,
-                timeout=30,
-                http_client=custom_client
+                http_async_client=async_client
             )
 
             logger.info(f"Initialized OpenAI model: {model_name} via API Gateway: {self.base_url}")
@@ -98,7 +90,7 @@ class OpenAILLMModel(LLMModel):
             logger.error(f"Failed to initialize Modern OpenAI client: {str(e)}")
             raise
 
-    async def generate_response(self, context: str, query: str, callbacks: list = None) -> str:
+    async def generate_response(self, context: str, query: str, callbacks: list = None, **kwargs) -> str:
         """Generate response using Modern OpenAI with built-in retry logic"""
 
         system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
@@ -120,8 +112,19 @@ Please answer the question based only on the provided context."""
                 HumanMessage(content=user_prompt)
             ]
 
-            # Use Modern's async invoke method with callbacks
-            config = {"callbacks": callbacks} if callbacks else {}
+            # Use Modern's async invoke method with only valid config parameters
+            # Filter out any kwargs that could cause parameter conflicts
+            valid_config_keys = {'callbacks', 'tags', 'metadata', 'run_name'}
+            config = {}
+
+            if callbacks:
+                config["callbacks"] = callbacks
+
+            # Add any other valid config parameters from kwargs
+            for key, value in kwargs.items():
+                if key in valid_config_keys:
+                    config[key] = value
+
             response = await self.llm.ainvoke(messages, config=config)
             return response.content.strip()
 
@@ -149,7 +152,7 @@ Please answer the question based only on the provided context."""
                 logger.error(f"OpenAI API error: {e}")
                 return f"❌ OpenAI API error: {e}"
 
-    async def generate_response_stream(self, context: str, query: str, callbacks: list = None):
+    async def generate_response_stream(self, context: str, query: str, **kwargs) -> AsyncGenerator[str, None]:
         """Generate streaming response using Modern OpenAI"""
 
         system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
@@ -171,8 +174,20 @@ Please answer the question based only on the provided context."""
                 HumanMessage(content=user_prompt)
             ]
 
-            # Use streaming for real-time responses with callbacks
-            config = {"callbacks": callbacks} if callbacks else {}
+            # Use streaming for real-time responses with only valid config parameters
+            # Filter out any kwargs that could cause parameter conflicts
+            valid_config_keys = {'callbacks', 'tags', 'metadata', 'run_name'}
+            config = {}
+
+            callbacks = kwargs.get('callbacks', [])
+            if callbacks:
+                config["callbacks"] = callbacks
+
+            # Add any other valid config parameters from kwargs
+            for key, value in kwargs.items():
+                if key in valid_config_keys and key != 'callbacks':  # callbacks already handled
+                    config[key] = value
+
             async for chunk in self.llm.astream(messages, config=config):
                 if hasattr(chunk, 'content') and chunk.content:
                     yield chunk.content
@@ -305,12 +320,8 @@ class GoogleLLMModel(LLMModel):
 
             # Create custom HTTP client with Kong API headers in correct format
             # Kong requires: {"api-key": key, "ai-gateway-version": "v2"}
-            custom_headers = config.get_gateway_headers(self.api_key)
+            async_client = httpx.AsyncClient(headers=config.get_gateway_headers(self.api_key))
 
-            custom_client = httpx.Client(
-                headers=custom_headers,
-                timeout=30.0
-            )
 
             # Initialize Google LLM with Kong API Gateway
             # Use "dummy" for google_api_key since Kong handles authentication via header
@@ -322,7 +333,7 @@ class GoogleLLMModel(LLMModel):
                 timeout=30,
                 # Note: Google LangChain may not support custom HTTP client
                 # If it doesn't work, we'll need to use a different approach
-                client=custom_client if hasattr(ChatGoogleGenerativeAI, 'client') else None
+                http_async_client=async_client if hasattr(ChatGoogleGenerativeAI, 'http_async_client') else None
             )
 
             logger.info(f"Initialized Modern Google model: {model_name}")
@@ -334,7 +345,7 @@ class GoogleLLMModel(LLMModel):
             logger.error(f"Failed to initialize Modern Google client: {str(e)}")
             raise
 
-    async def generate_response(self, context: str, query: str) -> str:
+    async def generate_response(self, context: str, query: str, **kwargs) -> str:
         """Generate response using Modern Google model via Kong Gateway"""
 
         system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
@@ -364,7 +375,7 @@ Please answer the question based only on the provided context."""
             logger.error(f"Google Gemini API error: {str(e)}")
             return f"❌ Error generating response with Google Gemini via Kong Gateway: {str(e)}"
 
-    async def generate_response_stream(self, context: str, query: str):
+    async def generate_response_stream(self, context: str, query: str, **kwargs) -> AsyncGenerator[str, None]:
         """Generate streaming response using Modern Google model via Kong Gateway"""
 
         system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
@@ -439,7 +450,7 @@ class LLMFactory(ILLMModelFactory):
     @classmethod
     def create_model(cls, provider: str, model_name: str, **config) -> LLMModel:
         """Create an LLM model instance - models handle their own configuration"""
-        from ..config.model_config import get_model_config, LLMProvider
+        from ..config.model_config import get_model_config
         model_config = get_model_config()
 
         # Convert string provider to enum if needed
@@ -468,16 +479,18 @@ class LLMFactory(ILLMModelFactory):
     @classmethod
     def create_model_legacy(cls, provider = None, model_name: str = None) -> LLMModel:
         """Legacy method for backward compatibility"""
-        from ..config.model_config import get_model_config, LLMProvider
+        from ..config.model_config import get_model_config
         config = get_model_config()
 
         # Use defaults if not specified and handle string/enum provider input
         if provider is None:
             provider_str = config.get_default_llm_provider()
-            provider = config.get_llm_provider_enum(provider_str)
+            from ..config.model_config import ModelConfigLoader
+            provider = ModelConfigLoader.get_llm_provider_enum(provider_str)
         elif isinstance(provider, str):
             # Convert string provider to enum
-            provider = config.get_llm_provider_enum(provider)
+            from ..config.model_config import ModelConfigLoader
+            provider = ModelConfigLoader.get_llm_provider_enum(provider)
         # If provider is already an enum, use it as-is
 
         if model_name is None:
