@@ -15,8 +15,6 @@ class VectorStore(IVectorStore):
                  collection_name: str = "documents",
                  persist_directory: str = "./chroma_db",
                  embedding_model: str = None,
-                 api_key: str = None,
-                 base_url: str = None,
                  use_langchain_vectorstore: bool = False):
 
         self.collection_name = collection_name
@@ -24,7 +22,8 @@ class VectorStore(IVectorStore):
         self.use_langchain_vectorstore = use_langchain_vectorstore
 
         # Use modern embedding implementation
-        self.embedding_service = EmbeddingService(embedding_model, api_key, base_url)
+        # EmbeddingService now handles its own configuration, just pass model_name
+        self.embedding_service = EmbeddingService(model_name=embedding_model)
         logger.info("Using modern embedding implementation")
 
         # Choose vector store implementation

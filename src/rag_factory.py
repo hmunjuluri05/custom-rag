@@ -117,8 +117,8 @@ class RAGSystemFactory:
         collection_name: str = "documents",
         persist_directory: str = "./chroma_db",
         embedding_model: str = None,
-        api_key: str = None,
-        base_url: str = None,
+        api_key: str = None,  # Kept for backward compatibility but ignored
+        base_url: str = None,  # Kept for backward compatibility but ignored
         use_langchain_vectorstore: bool = False
     ) -> IVectorStore:
         """Create vector store instance."""
@@ -126,8 +126,6 @@ class RAGSystemFactory:
             collection_name=collection_name,
             persist_directory=persist_directory,
             embedding_model=embedding_model,
-            api_key=api_key,
-            base_url=base_url,
             use_langchain_vectorstore=use_langchain_vectorstore
         )
 
