@@ -23,10 +23,26 @@ class ChatService:
                     top_k=top_k,
                     document_filter=document_filter
                 )
+
+                # Format response with document details
+                if results:
+                    response_parts = [f"Found {len(results)} relevant documents:\n"]
+                    for i, result in enumerate(results, 1):
+                        filename = result.get("filename", "Unknown")
+                        similarity = result.get("similarity_score", 0)
+                        content_preview = result.get("content", "")[:200] + "..." if len(result.get("content", "")) > 200 else result.get("content", "")
+
+                        response_parts.append(f"\n**{i}. {filename}** (Similarity: {similarity:.2f})")
+                        response_parts.append(f"{content_preview}\n")
+
+                    response_text = "\n".join(response_parts)
+                else:
+                    response_text = "No relevant documents found for your query."
+
                 return {
-                    "response": f"Found {len(results)} relevant documents",
+                    "response": response_text,
                     "results": results,
-                    "sources": [],
+                    "sources": [{"filename": r.get("filename", "Unknown"), "relevance_score": r.get("relevance_score", 0)} for r in results],
                     "query": query,
                     "mode": mode
                 }

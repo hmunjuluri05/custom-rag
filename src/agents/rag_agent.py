@@ -335,6 +335,16 @@ class AgenticRAGSystem(IAgentSystem):
 
         result = await agent.query(question)
         result["agent_type"] = agent_type
+
+        # Normalize response format for chat interface
+        # Convert "answer" field to "response" if present
+        if "answer" in result and "response" not in result:
+            result["response"] = result["answer"]
+
+        # Ensure sources field exists for UI compatibility
+        if "sources" not in result:
+            result["sources"] = []
+
         return result
 
     async def route_query_stream(self, question: str, agent_type: str = "general"):
