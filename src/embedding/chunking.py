@@ -81,8 +81,13 @@ class BaseChunker(ABC):
         """Split text into chunks"""
         pass
 
-    def _create_chunk(self, text: str, metadata: Dict[str, Any], chunk_index: int, total_chunks: int) -> Dict[str, Any]:
+    def _create_chunk(self, text: str, metadata: Dict[str, Any], chunk_index: int, total_chunks: int, start_word: int = 0, end_word: int = 0) -> Dict[str, Any]:
         """Create a chunk with metadata"""
+        word_count = len(text.split())
+        # If word positions not provided, calculate from chunk index
+        if start_word == 0 and end_word == 0 and word_count > 0:
+            end_word = start_word + word_count
+
         return {
             "text": text.strip(),
             "metadata": {
@@ -91,7 +96,9 @@ class BaseChunker(ABC):
                 "total_chunks": total_chunks,
                 "chunking_strategy": self.config.strategy.value,
                 "chunk_size_config": self.config.chunk_size,
-                "actual_chunk_size": len(text.split())
+                "actual_chunk_size": word_count,
+                "start_word": start_word,
+                "end_word": end_word
             }
         }
 
@@ -115,6 +122,7 @@ class WordBasedChunker(BaseChunker):
         while start < len(words):
             end = min(start + self.config.chunk_size, len(words))
             chunk_words = words[start:end]
+            actual_end = end  # Track actual end position
 
             # Preserve sentence boundaries if enabled
             if self.config.preserve_sentences and end < len(words):
@@ -128,11 +136,12 @@ class WordBasedChunker(BaseChunker):
                 if last_sentence_end > len(chunk_text) * 0.5:  # Only if we find a sentence end in the latter half
                     chunk_text = chunk_text[:last_sentence_end + 1]
                     chunk_words = chunk_text.split()
+                    actual_end = start + len(chunk_words)
 
             chunk_text = " ".join(chunk_words)
 
             if len(chunk_words) >= self.config.min_chunk_size:
-                chunks.append(self._create_chunk(chunk_text, metadata, chunk_index, 0))
+                chunks.append(self._create_chunk(chunk_text, metadata, chunk_index, 0, start_word=start, end_word=actual_end))
                 chunk_index += 1
 
             start += step_size
