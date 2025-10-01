@@ -112,7 +112,7 @@ class WordBasedChunker(BaseChunker):
         words = text.split()
 
         if len(words) <= self.config.chunk_size:
-            return [self._create_chunk(text, metadata, 0, 1)]
+            return [self._create_chunk(text, metadata, 0, 1, start_word=0, end_word=len(words))]
 
         chunks = []
         step_size = self.config.chunk_size - self.config.chunk_overlap
