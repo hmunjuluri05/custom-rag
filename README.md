@@ -174,8 +174,8 @@ graph TB
         P[Agent Tools<br/>Knowledge Search<br/>Document Analysis]
     end
 
-    subgraph "External Services"
-        Q[Kong API Gateway<br/>Optional]
+    subgraph "API Gateway"
+        Q[Kong API Gateway]
     end
 
     A --> C

@@ -81,13 +81,12 @@ class BaseChunker(ABC):
         """Split text into chunks"""
         pass
 
-    def _create_chunk(self, text: str, metadata: Dict[str, Any], chunk_index: int, total_chunks: int, start_word: int = 0, end_word: int = 0) -> Dict[str, Any]:
+    def _create_chunk(self, text: str, metadata: Dict[str, Any], chunk_index: int, total_chunks: int, start_word: int = None, end_word: int = None) -> Dict[str, Any]:
         """Create a chunk with metadata"""
         word_count = len(text.split())
-        # If word positions not provided, calculate from chunk index
-        if start_word == 0 and end_word == 0 and word_count > 0:
-            end_word = start_word + word_count
 
+        # Use None to indicate positions should be calculated later
+        # If explicitly passed (even as 0), use those values
         return {
             "text": text.strip(),
             "metadata": {
@@ -101,6 +100,22 @@ class BaseChunker(ABC):
                 "end_word": end_word
             }
         }
+
+    def _calculate_word_positions(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Calculate cumulative word positions for chunks that don't have them"""
+        cumulative_position = 0
+
+        for chunk in chunks:
+            metadata = chunk["metadata"]
+            word_count = metadata["actual_chunk_size"]
+
+            # Only calculate if positions weren't explicitly set
+            if metadata.get("start_word") is None:
+                metadata["start_word"] = cumulative_position
+                metadata["end_word"] = cumulative_position + word_count
+                cumulative_position += word_count
+
+        return chunks
 
 class WordBasedChunker(BaseChunker):
     """Word-based chunking with overlap"""
@@ -153,6 +168,9 @@ class WordBasedChunker(BaseChunker):
         for chunk in chunks:
             chunk["metadata"]["total_chunks"] = len(chunks)
 
+        # Calculate cumulative word positions
+        self._calculate_word_positions(chunks)
+
         return chunks
 
 class SentenceBasedChunker(BaseChunker):
@@ -204,6 +222,9 @@ class SentenceBasedChunker(BaseChunker):
         # Update total chunks count
         for chunk in chunks:
             chunk["metadata"]["total_chunks"] = len(chunks)
+
+        # Calculate cumulative word positions
+        self._calculate_word_positions(chunks)
 
         return chunks
 
@@ -271,6 +292,9 @@ class ParagraphBasedChunker(BaseChunker):
         for chunk in chunks:
             chunk["metadata"]["total_chunks"] = len(chunks)
 
+        # Calculate cumulative word positions
+        self._calculate_word_positions(chunks)
+
         return chunks
 
 class FixedSizeChunker(BaseChunker):
@@ -313,6 +337,9 @@ class FixedSizeChunker(BaseChunker):
         for chunk in chunks:
             chunk["metadata"]["total_chunks"] = len(chunks)
 
+        # Calculate cumulative word positions
+        self._calculate_word_positions(chunks)
+
         return chunks
 
 # LangChain-based chunkers (defined before factory to avoid NameError)
@@ -345,6 +372,9 @@ class RecursiveCharacterChunker(BaseChunker):
                     formatted_chunks.append(
                         self._create_chunk(chunk_text, metadata, i, len(chunks))
                     )
+
+            # Calculate cumulative word positions
+            self._calculate_word_positions(formatted_chunks)
 
             return formatted_chunks
 
@@ -381,6 +411,9 @@ class CharacterChunker(BaseChunker):
                         self._create_chunk(chunk_text, metadata, i, len(chunks))
                     )
 
+            # Calculate cumulative word positions
+            self._calculate_word_positions(formatted_chunks)
+
             return formatted_chunks
 
         except Exception as e:
@@ -407,18 +440,14 @@ class TokenBasedChunker(BaseChunker):
             formatted_chunks = []
             for i, chunk_text in enumerate(chunks):
                 if len(chunk_text.strip()) >= self.config.min_chunk_size:
-                    chunk_metadata = {
-                        **metadata,
-                        "chunk_index": i,
-                        "total_chunks": len(chunks),
-                        "chunking_strategy": self.config.strategy.value,
-                        "token_count": len(splitter.encode(chunk_text)) if hasattr(splitter, 'encode') else None,
-                        "model_name": self.config.model_name
-                    }
-                    formatted_chunks.append({
-                        "text": chunk_text.strip(),
-                        "metadata": chunk_metadata
-                    })
+                    chunk = self._create_chunk(chunk_text, metadata, i, len(chunks))
+                    # Add token-specific metadata
+                    chunk["metadata"]["token_count"] = len(splitter.encode(chunk_text)) if hasattr(splitter, 'encode') else None
+                    chunk["metadata"]["model_name"] = self.config.model_name
+                    formatted_chunks.append(chunk)
+
+            # Calculate cumulative word positions
+            self._calculate_word_positions(formatted_chunks)
 
             return formatted_chunks
 
@@ -446,18 +475,14 @@ class SentenceTransformersTokenChunker(BaseChunker):
             formatted_chunks = []
             for i, chunk_text in enumerate(chunks):
                 if len(chunk_text.strip()) >= self.config.min_chunk_size:
-                    chunk_metadata = {
-                        **metadata,
-                        "chunk_index": i,
-                        "total_chunks": len(chunks),
-                        "chunking_strategy": self.config.strategy.value,
-                        "tokens_per_chunk": self.config.tokens_per_chunk,
-                        "model_name": "tiktoken"
-                    }
-                    formatted_chunks.append({
-                        "text": chunk_text.strip(),
-                        "metadata": chunk_metadata
-                    })
+                    chunk = self._create_chunk(chunk_text, metadata, i, len(chunks))
+                    # Add token-specific metadata
+                    chunk["metadata"]["tokens_per_chunk"] = self.config.tokens_per_chunk
+                    chunk["metadata"]["model_name"] = "tiktoken"
+                    formatted_chunks.append(chunk)
+
+            # Calculate cumulative word positions
+            self._calculate_word_positions(formatted_chunks)
 
             return formatted_chunks
 
