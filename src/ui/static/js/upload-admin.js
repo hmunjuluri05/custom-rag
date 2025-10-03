@@ -806,8 +806,11 @@ async function loadLLMProviders() {
         const models = await response.json();
         availableLLMModels = models;
 
-        // Get provider names from the response
+        // Get provider names from the response (keys of the models object)
         const providers = Object.keys(models);
+
+        console.log('LLM Providers loaded:', providers);
+        console.log('LLM Models structure:', models);
 
         // Populate all LLM provider dropdowns
         const providerDropdowns = ['llmProvider', 'editLLMProvider'];
@@ -818,12 +821,19 @@ async function loadLLMProviders() {
                 providers.forEach(provider => {
                     const option = document.createElement('option');
                     option.value = provider;
-                    const displayName = models[provider].display_name || provider.charAt(0).toUpperCase() + provider.slice(1);
+                    // Use description from provider info or capitalize provider name
+                    const providerInfo = models[provider];
+                    const displayName = providerInfo.description?.split(' ')[0] || provider.charAt(0).toUpperCase() + provider.slice(1);
                     option.textContent = displayName;
                     dropdown.appendChild(option);
                 });
             }
         });
+
+        // After populating providers, update the models for the first provider
+        if (providers.length > 0) {
+            updateLLMSettings();
+        }
     } catch (error) {
         console.error('Error loading LLM providers:', error);
     }
@@ -1298,39 +1308,28 @@ async function updateLLMSettings() {
     // Clear existing options
     modelSelect.innerHTML = '';
 
-    // Load available models for the selected provider
-    try {
-        const response = await fetch('/api/system/llm/models');
-        const data = await response.json();
-
-        if (response.ok && data[provider] && data[provider].models && data[provider].models.length > 0) {
-            // Use API models if available
-            const models = data[provider].models;
-            models.forEach(model => {
-                const option = document.createElement('option');
-                option.value = model;
-                option.textContent = model;
-                modelSelect.appendChild(option);
-            });
-            return; // Exit early if API worked
+    // Use cached LLM models from loadLLMProviders or fetch if needed
+    if (!availableLLMModels || Object.keys(availableLLMModels).length === 0) {
+        try {
+            const response = await fetch('/api/system/llm/models');
+            availableLLMModels = await response.json();
+        } catch (error) {
+            console.error('Error loading LLM models:', error);
+            return;
         }
-        throw new Error('API did not return valid models');
-    } catch (error) {
-        console.error('Error loading LLM models, using fallback:', error);
-        // Only use fallback if API failed or returned no models
-        const fallbackModels = {
-            'openai': ['gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo'],
-            'google': ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro']
-        };
+    }
 
-        if (fallbackModels[provider]) {
-            fallbackModels[provider].forEach(model => {
-                const option = document.createElement('option');
-                option.value = model;
-                option.textContent = model;
-                modelSelect.appendChild(option);
-            });
-        }
+    // Get models for the selected provider
+    const providerInfo = availableLLMModels[provider];
+    if (providerInfo && providerInfo.models) {
+        // models is an object, get the keys (model names)
+        const modelNames = Object.keys(providerInfo.models);
+        modelNames.forEach(modelName => {
+            const option = document.createElement('option');
+            option.value = modelName;
+            option.textContent = modelName;
+            modelSelect.appendChild(option);
+        });
     }
 }
 
@@ -1574,6 +1573,54 @@ async function updateLLMModelsForEdit() {
     modelSection.classList.remove('d-none');
 
     // Clear existing options
+    modelSelect.innerHTML = '';
+    console.log('Cleared options, count now:', modelSelect.options.length);
+
+    // Use cached LLM models or fetch if needed
+    if (!availableLLMModels || Object.keys(availableLLMModels).length === 0) {
+        try {
+            console.log('Fetching models from API...');
+            const response = await fetch('/api/system/llm/models');
+            availableLLMModels = await response.json();
+            console.log('API response:', availableLLMModels);
+        } catch (error) {
+            console.error('Error loading LLM models:', error);
+            return;
+        }
+    }
+
+    // Get models for the selected provider
+    const providerInfo = availableLLMModels[provider];
+    if (providerInfo && providerInfo.models) {
+        // models is an object, get the keys (model names)
+        const modelNames = Object.keys(providerInfo.models);
+        console.log('Loading models for provider:', provider, modelNames);
+        modelNames.forEach(modelName => {
+            const option = document.createElement('option');
+            option.value = modelName;
+            option.textContent = modelName;
+            modelSelect.appendChild(option);
+        });
+        console.log('Added models, final count:', modelSelect.options.length);
+    } else {
+        console.log('No models found for provider:', provider);
+    }
+}
+
+async function updateLLMModelsForEdit_OLD_REMOVE_THIS() {
+    // This is the old version - DELETE THIS FUNCTION
+    console.log('--- updateLLMModelsForEdit called ---');
+    const provider = document.getElementById('editLLMProvider').value;
+    const modelSection = document.getElementById('editLLMModelSection');
+    const modelSelect = document.getElementById('editLLMModel');
+
+    console.log('Provider:', provider);
+    console.log('Current options count before clear:', modelSelect.options.length);
+
+    // Always show model section since we removed "none" option
+    modelSection.classList.remove('d-none');
+
+    // Clear existing options - DELETE FROM HERE
     modelSelect.innerHTML = '';
     console.log('Cleared options, count now:', modelSelect.options.length);
 
