@@ -16,12 +16,9 @@ function initializeAdmin() {
     updateChunkingOptions(); // Initialize chunking options display
     loadDocumentFilter(); // Load documents for filter dropdown
 
-    // Set default LLM display immediately, then try to load from API
-    const llmModelDisplay = document.getElementById('llmModelDisplay');
-    if (llmModelDisplay) {
-        llmModelDisplay.textContent = 'OpenAI: gpt-4';
-    }
-
+    // Load models and providers from API
+    loadEmbeddingProviders();
+    loadLLMProviders();
     loadLLMDisplay(); // Load LLM display on page load
 
     // Add periodic check to ensure LLM display never shows NONE
@@ -771,6 +768,66 @@ async function loadAvailableEmbeddingModels() {
 // Global variables to store all available models
 let availableEmbeddingModels = {};
 let availableLLMModels = {};
+
+async function loadEmbeddingProviders() {
+    try {
+        const response = await fetch('/api/system/embedding/models');
+        const models = await response.json();
+        availableEmbeddingModels = models;
+
+        // Get unique providers
+        const providers = new Set();
+        Object.values(models).forEach(model => {
+            providers.add(model.provider);
+        });
+
+        // Populate all embedding provider dropdowns
+        const providerDropdowns = ['embeddingProvider', 'editEmbeddingProvider'];
+        providerDropdowns.forEach(dropdownId => {
+            const dropdown = document.getElementById(dropdownId);
+            if (dropdown) {
+                dropdown.innerHTML = '';
+                providers.forEach(provider => {
+                    const option = document.createElement('option');
+                    option.value = provider;
+                    option.textContent = provider.charAt(0).toUpperCase() + provider.slice(1);
+                    dropdown.appendChild(option);
+                });
+            }
+        });
+    } catch (error) {
+        console.error('Error loading embedding providers:', error);
+    }
+}
+
+async function loadLLMProviders() {
+    try {
+        const response = await fetch('/api/system/llm/models');
+        const models = await response.json();
+        availableLLMModels = models;
+
+        // Get provider names from the response
+        const providers = Object.keys(models);
+
+        // Populate all LLM provider dropdowns
+        const providerDropdowns = ['llmProvider', 'editLLMProvider'];
+        providerDropdowns.forEach(dropdownId => {
+            const dropdown = document.getElementById(dropdownId);
+            if (dropdown) {
+                dropdown.innerHTML = '';
+                providers.forEach(provider => {
+                    const option = document.createElement('option');
+                    option.value = provider;
+                    const displayName = models[provider].display_name || provider.charAt(0).toUpperCase() + provider.slice(1);
+                    option.textContent = displayName;
+                    dropdown.appendChild(option);
+                });
+            }
+        });
+    } catch (error) {
+        console.error('Error loading LLM providers:', error);
+    }
+}
 
 function populateEmbeddingModelsDropdown(models) {
     console.log('Populating embedding models dropdown with:', models);
