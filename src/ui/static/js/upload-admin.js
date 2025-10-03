@@ -821,9 +821,8 @@ async function loadLLMProviders() {
                 providers.forEach(provider => {
                     const option = document.createElement('option');
                     option.value = provider;
-                    // Use description from provider info or capitalize provider name
-                    const providerInfo = models[provider];
-                    const displayName = providerInfo.description?.split(' ')[0] || provider.charAt(0).toUpperCase() + provider.slice(1);
+                    // Capitalize provider name (openai -> OpenAI, google -> Google)
+                    const displayName = provider.charAt(0).toUpperCase() + provider.slice(1);
                     option.textContent = displayName;
                     dropdown.appendChild(option);
                 });
@@ -1844,6 +1843,12 @@ function closeLLMModal() {
 async function loadCurrentLLMSettingsForEdit() {
     console.log('=== loadCurrentLLMSettingsForEdit called ===');
     try {
+        // Ensure providers are loaded first
+        if (!availableLLMModels || Object.keys(availableLLMModels).length === 0) {
+            console.log('LLM models not loaded yet, loading now...');
+            await loadLLMProviders();
+        }
+
         // First set default provider and populate models
         const providerDropdown = document.getElementById('editLLMProvider');
         const modelDropdown = document.getElementById('editLLMModel');
@@ -1857,13 +1862,10 @@ async function loadCurrentLLMSettingsForEdit() {
         console.log('Clearing existing model options');
         modelDropdown.innerHTML = '';
 
-        // Set default provider to OpenAI
-        providerDropdown.value = 'openai';
-        console.log('Set provider to:', providerDropdown.value);
-
-        // Try to load current settings from API first
-        let currentProvider = 'openai';
-        let currentModel = 'gpt-4';
+        // Get first available provider as default
+        const providers = Object.keys(availableLLMModels);
+        let currentProvider = providers[0] || 'openai';
+        let currentModel = '';
 
         try {
             console.log('Fetching current LLM settings from API...');
