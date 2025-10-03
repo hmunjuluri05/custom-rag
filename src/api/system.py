@@ -154,9 +154,8 @@ def create_system_router(rag_system, file_service):
         """Get available LLM models"""
         try:
             models = rag_system.get_available_llms()
-            # Convert enum keys to strings for JSON serialization
-            serializable_models = {provider.value: info for provider, info in models.items()}
-            return JSONResponse(content=serializable_models)
+            # Models are already in the correct format (string keys)
+            return JSONResponse(content=models)
         except Exception as e:
             logger.error(f"Error getting available LLM models: {str(e)}")
             raise HTTPException(status_code=500, detail=str(e))
