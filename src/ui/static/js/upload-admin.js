@@ -768,8 +768,9 @@ async function loadAvailableEmbeddingModels() {
     }
 }
 
-// Global variable to store all available models
+// Global variables to store all available models
 let availableEmbeddingModels = {};
+let availableLLMModels = {};
 
 function populateEmbeddingModelsDropdown(models) {
     console.log('Populating embedding models dropdown with:', models);
@@ -827,18 +828,8 @@ function updateEmbeddingProviderSettings() {
 function loadFallbackEmbeddingModels() {
     console.log('Loading fallback embedding models...');
 
-    // Create fallback models structure
-    availableEmbeddingModels = {
-        // OpenAI models
-        'text-embedding-3-large': { provider: 'openai', dimension: 3072, category: 'Premium', requires_api_key: true, cost: 'Paid' },
-        'text-embedding-3-small': { provider: 'openai', dimension: 1536, category: 'Standard', requires_api_key: true, cost: 'Paid' },
-        'text-embedding-ada-002': { provider: 'openai', dimension: 1536, category: 'Legacy', requires_api_key: true, cost: 'Paid' },
-
-        // Google models
-        'models/embedding-001': { provider: 'google', dimension: 768, category: 'General', requires_api_key: true, cost: 'Free/Paid' },
-        'models/text-embedding-004': { provider: 'google', dimension: 768, category: 'Latest', requires_api_key: true, cost: 'Free/Paid' },
-
-    };
+    // Fetch embedding models from API (will be populated dynamically)
+    availableEmbeddingModels = {};
 
     // Initialize the provider dropdown and load models for default provider
     updateEmbeddingProviderSettings();
