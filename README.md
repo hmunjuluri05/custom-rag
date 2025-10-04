@@ -229,6 +229,132 @@ graph TB
 - **Mock Support**: Complete mock implementations for isolated testing
 - **Provider Agnostic**: Easy to swap LLM and embedding providers
 
+## Agentic RAG System
+
+### Overview
+
+The Agentic RAG system uses a **ReAct (Reasoning and Acting) pattern** to intelligently process complex queries through multi-step reasoning. Unlike simple RAG systems that perform a single retrieval and generation step, the Agentic RAG can:
+
+- **Reason** about what information is needed
+- **Plan** multiple retrieval steps
+- **Act** using specialized tools
+- **Synthesize** information from multiple sources
+- **Self-correct** based on retrieved information
+
+### How It Works
+
+The agent uses a **thought → action → observation loop** to iteratively gather information and reason about the answer:
+
+1. **Thought**: Agent analyzes the question and decides what to do next
+2. **Action**: Agent selects and executes a tool (search knowledge base, analyze documents)
+3. **Observation**: Agent processes the tool's output
+4. **Repeat**: Agent continues thinking and acting until it has enough information
+5. **Answer**: Agent synthesizes all observations into a final answer
+
+### Agentic RAG Workflow
+
+```mermaid
+flowchart TB
+    Start([User Query]) --> Agent[ReAct Agent<br/>LLM-powered reasoning]
+
+    Agent --> Think{Thought:<br/>What do I need?}
+
+    Think --> |"Need to search<br/>knowledge base"| Action1[Action: RAG Search Tool]
+    Think --> |"Need document<br/>analysis"| Action2[Action: Document Analysis Tool]
+    Think --> |"Have enough<br/>information"| Final[Final Answer]
+
+    Action1 --> Vector[Vector Store Search]
+    Vector --> Retrieve[Retrieve Relevant Chunks]
+    Retrieve --> Obs1[Observation:<br/>Retrieved context]
+
+    Action2 --> DocAnalysis[Analyze Document Structure]
+    DocAnalysis --> Obs2[Observation:<br/>Document insights]
+
+    Obs1 --> Agent
+    Obs2 --> Agent
+
+    Final --> Response([Synthesized Answer])
+
+    style Start fill:#4FC3F7,stroke:#0288D1,stroke-width:3px,color:#000
+    style Agent fill:#BA68C8,stroke:#7B1FA2,stroke-width:3px,color:#000
+    style Think fill:#FFB74D,stroke:#F57C00,stroke-width:2px,color:#000
+    style Action1 fill:#81C784,stroke:#388E3C,stroke-width:2px,color:#000
+    style Action2 fill:#81C784,stroke:#388E3C,stroke-width:2px,color:#000
+    style Vector fill:#FFD54F,stroke:#F57F17,stroke-width:2px,color:#000
+    style Retrieve fill:#FFD54F,stroke:#F57F17,stroke-width:2px,color:#000
+    style DocAnalysis fill:#FFD54F,stroke:#F57F17,stroke-width:2px,color:#000
+    style Obs1 fill:#F06292,stroke:#C2185B,stroke-width:2px,color:#000
+    style Obs2 fill:#F06292,stroke:#C2185B,stroke-width:2px,color:#000
+    style Final fill:#81C784,stroke:#388E3C,stroke-width:3px,color:#000
+    style Response fill:#4FC3F7,stroke:#0288D1,stroke-width:3px,color:#000
+```
+
+### Available Agent Tools
+
+#### 1. RAG Search Tool
+- **Purpose**: Search the knowledge base using semantic similarity
+- **Input**: Search query or question
+- **Output**: Relevant document chunks with context
+- **Use Case**: Finding specific information across documents
+
+#### 2. Document Analysis Tool
+- **Purpose**: Analyze document structure, metadata, and relationships
+- **Input**: Document ID or search criteria
+- **Output**: Document insights, statistics, and summaries
+- **Use Case**: Understanding document organization and extracting metadata
+
+### Agentic RAG vs Standard RAG
+
+| Feature | Standard RAG | Agentic RAG |
+|---------|-------------|-------------|
+| **Retrieval** | Single-step retrieval | Multi-step iterative retrieval |
+| **Reasoning** | No reasoning | ReAct reasoning loop |
+| **Tools** | Fixed retrieval | Multiple specialized tools |
+| **Complexity** | Simple queries | Complex, multi-part queries |
+| **Response Time** | ~1-3 seconds | ~3-10 seconds |
+| **Accuracy** | Good for direct questions | Better for complex analysis |
+
+### Example Query Flow
+
+**Query**: "What are the key differences between the Q1 and Q2 financial reports?"
+
+```
+Thought: I need to find Q1 and Q2 financial reports first
+Action: RAG Search Tool - "Q1 financial report"
+Observation: Found Q1 report with revenue data
+
+Thought: Now I need Q2 report to compare
+Action: RAG Search Tool - "Q2 financial report"
+Observation: Found Q2 report with revenue data
+
+Thought: I should analyze both documents for detailed comparison
+Action: Document Analysis Tool - Compare Q1 and Q2 documents
+Observation: Identified key metrics: revenue, expenses, profit margins
+
+Thought: I have enough information to answer
+Final Answer: [Synthesized comparison of Q1 vs Q2 with specific metrics]
+```
+
+### When to Use Agentic RAG
+
+**Use Agentic RAG for:**
+- ✅ Multi-document comparison and analysis
+- ✅ Complex queries requiring multiple retrieval steps
+- ✅ Questions needing document structure understanding
+- ✅ Queries requiring synthesis of disparate information
+- ✅ Research-style questions with follow-up analysis
+
+**Use Standard LLM Response for:**
+- ✅ Direct, single-answer questions
+- ✅ Simple fact retrieval
+- ✅ Speed-critical applications
+- ✅ Straightforward document queries
+
+**Use Vector Search for:**
+- ✅ Finding similar documents
+- ✅ Fastest retrieval needs
+- ✅ When you just need relevant chunks without LLM processing
+
 ## Troubleshooting
 
 ### Common Issues
