@@ -102,8 +102,8 @@ defaults:
 
 # Gateway configuration for API routing and authentication
 gateway:
-  # Kong API Gateway headers format
-  # Kong requires specific header format: {"api-key": key, "ai-gateway-version": "v2"}
+  # API Gateway headers format (customizable based on your gateway)
+  # Example header format: {"api-key": key, "ai-gateway-version": "v2"}
   api_key_header: api-key
   gateway_version_header: ai-gateway-version
   gateway_version: v2

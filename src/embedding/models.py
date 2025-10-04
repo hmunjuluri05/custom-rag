@@ -65,7 +65,7 @@ class EmbeddingModel(IEmbeddingModel):
 
 
 class OpenAIEmbeddingModel(EmbeddingModel):
-    """Modern OpenAI embedding model wrapper with Kong API Gateway support"""
+    """Modern OpenAI embedding model wrapper with API Gateway support"""
 
     def __init__(self, model_name: str = "text-embedding-3-large"):
         self.model_name = model_name
@@ -90,17 +90,17 @@ class OpenAIEmbeddingModel(EmbeddingModel):
             from langchain_openai import OpenAIEmbeddings
             import httpx
 
-            # Create custom HTTP client with Kong API headers in correct format
-            # Kong requires: {"api-key": key, "ai-gateway-version": "v2"}
+            # Create custom HTTP client with API Gateway headers
+            # Headers configured via config/models.yaml (e.g., {"api-key": key, "ai-gateway-version": "v2"})
             from ..config.model_config import get_model_config
             config = get_model_config()
             async_client = httpx.AsyncClient(headers=config.get_gateway_headers(self.api_key))
 
-            # Initialize Modern OpenAI embeddings with Kong API Gateway
-            # Use "dummy" for api_key since Kong handles authentication via header
+            # Initialize Modern OpenAI embeddings with API Gateway
+            # Use "dummy" for api_key since API Gateway handles authentication via custom header
             self.embeddings = OpenAIEmbeddings(
                 model=self.model_name,
-                api_key="dummy",  # Kong handles auth via custom header
+                api_key="dummy",  # API Gateway handles auth via custom header
                 base_url=self.base_url,
                 # Additional parameters for better performance
                 chunk_size=1000,  # Process up to 1000 texts at once
@@ -185,7 +185,7 @@ class OpenAIEmbeddingModel(EmbeddingModel):
 
 
 class GoogleEmbeddingModel(EmbeddingModel):
-    """Modern Google embedding model wrapper with Kong API Gateway support"""
+    """Modern Google embedding model wrapper with API Gateway support"""
 
     def __init__(self, model_name: str = "models/embedding-001"):
         self.model_name = model_name
@@ -211,17 +211,17 @@ class GoogleEmbeddingModel(EmbeddingModel):
             from langchain_google_genai import GoogleGenerativeAIEmbeddings
             import httpx
 
-            # Create custom HTTP client with Kong API headers in correct format
-            # Kong requires: {"api-key": key, "ai-gateway-version": "v2"}
+            # Create custom HTTP client with API Gateway headers
+            # Headers configured via config/models.yaml (e.g., {"api-key": key, "ai-gateway-version": "v2"})
             from ..config.model_config import get_model_config
             config = get_model_config()
             async_client = httpx.AsyncClient(headers=config.get_gateway_headers(self.api_key))
 
-            # Initialize Google embeddings with Kong API Gateway
-            # Use "dummy" for google_api_key since Kong handles authentication via header
+            # Initialize Google embeddings with API Gateway
+            # Use "dummy" for google_api_key since API Gateway handles authentication via custom header
             self.embeddings = GoogleGenerativeAIEmbeddings(
                 model=self.model_name,
-                google_api_key="dummy",  # Kong handles auth via custom header
+                google_api_key="dummy",  # API Gateway handles auth via custom header
                 task_type="retrieval_document",
                 # Note: Google LangChain may not support custom HTTP client
                 # If it doesn't work, we'll need to use a different approach
@@ -249,7 +249,7 @@ class GoogleEmbeddingModel(EmbeddingModel):
             raise Exception(f"Failed to initialize Modern Google embedding model: {str(e)}")
 
     async def encode(self, texts: List[str], **kwargs) -> np.ndarray:
-        """Encode texts into embeddings using Modern via Kong Gateway"""
+        """Encode texts into embeddings using Modern via API Gateway"""
         try:
             if not texts:
                 return np.array([])

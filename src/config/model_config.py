@@ -246,19 +246,19 @@ class ModelConfigLoader:
         return self._config.get('validation', {}).get('llm_providers', ['openai', 'google'])
 
     def get_gateway_api_key_header(self) -> str:
-        """Get the header name for Kong API key authentication"""
+        """Get the header name for API Gateway key authentication"""
         return self._config.get('gateway', {}).get('api_key_header', 'api-key')
 
     def get_gateway_version_header(self) -> str:
-        """Get the header name for Kong gateway version"""
+        """Get the header name for API Gateway version"""
         return self._config.get('gateway', {}).get('gateway_version_header', 'ai-gateway-version')
 
     def get_gateway_version(self) -> str:
-        """Get the Kong gateway version"""
+        """Get the API Gateway version"""
         return self._config.get('gateway', {}).get('gateway_version', 'v2')
 
     def get_gateway_headers(self, api_key: str) -> Dict[str, str]:
-        """Get Kong API Gateway headers in the correct format"""
+        """Get API Gateway headers in the configured format"""
         if not api_key:
             return {}
 

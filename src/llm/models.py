@@ -42,7 +42,7 @@ class LLMModel(ILLMModel):
 
 
 class OpenAILLMModel(LLMModel):
-    """OpenAI model integration with Kong API Gateway support"""
+    """OpenAI model integration with API Gateway support"""
 
     def __init__(self, model_name: str = "gpt-4", provider: str = "openai"):
         self.model_name = model_name
@@ -66,16 +66,16 @@ class OpenAILLMModel(LLMModel):
             from langchain_openai import ChatOpenAI
             import httpx
 
-            # Create custom HTTP client with Kong API headers in correct format
-            # Kong requires: {"api-key": key, "ai-gateway-version": "v2"}
+            # Create custom HTTP client with API Gateway headers
+            # Headers configured via config/models.yaml (e.g., {"api-key": key, "ai-gateway-version": "v2"})
             async_client = httpx.AsyncClient(headers=config.get_gateway_headers(self.api_key))
 
-            # Initialize ChatOpenAI with Kong API Gateway
-            # Use "dummy" for api_key since Kong handles authentication via header
+            # Initialize ChatOpenAI with API Gateway
+            # Use "dummy" for api_key since API Gateway handles authentication via custom header
             # Minimal configuration to avoid parameter conflicts
             self.llm = ChatOpenAI(
                 model=self.model_name,
-                api_key="dummy",  # Kong handles auth via custom header
+                api_key="dummy",  # API Gateway handles auth via custom header
                 base_url=self.base_url,
                 temperature=0.7,
                 http_async_client=async_client
@@ -325,7 +325,7 @@ Error details: {error_msg}"""
 
 
 class GoogleLLMModel(LLMModel):
-    """Google Gemini model integration with Kong API Gateway support"""
+    """Google Gemini model integration with API Gateway support"""
 
     def __init__(self, model_name: str = "gemini-pro", provider: str = "google"):
         self.model_name = model_name
@@ -350,16 +350,16 @@ class GoogleLLMModel(LLMModel):
             from langchain_google_genai import ChatGoogleGenerativeAI
             import httpx
 
-            # Create custom HTTP client with Kong API headers in correct format
-            # Kong requires: {"api-key": key, "ai-gateway-version": "v2"}
+            # Create custom HTTP client with API Gateway headers
+            # Headers configured via config/models.yaml (e.g., {"api-key": key, "ai-gateway-version": "v2"})
             async_client = httpx.AsyncClient(headers=config.get_gateway_headers(self.api_key))
 
 
-            # Initialize Google LLM with Kong API Gateway
-            # Use "dummy" for google_api_key since Kong handles authentication via header
+            # Initialize Google LLM with API Gateway
+            # Use "dummy" for google_api_key since API Gateway handles authentication via custom header
             self.llm = ChatGoogleGenerativeAI(
                 model=self.model_name,
-                google_api_key="dummy",  # Kong handles auth via custom header
+                google_api_key="dummy",  # API Gateway handles auth via custom header
                 temperature=0.7,
                 max_output_tokens=1000,
                 timeout=30,
@@ -378,7 +378,7 @@ class GoogleLLMModel(LLMModel):
             raise
 
     async def generate_response(self, context: str, query: str, **kwargs) -> str:
-        """Generate response using Modern Google model via Kong Gateway"""
+        """Generate response using Modern Google model via API Gateway"""
 
         system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
         Use only the information from the context to answer questions. If the context doesn't contain relevant information,
@@ -421,10 +421,10 @@ Please answer the question based only on the provided context."""
 
         except Exception as e:
             logger.error(f"Google Gemini API error: {str(e)}")
-            return f"❌ Error generating response with Google Gemini via Kong Gateway: {str(e)}"
+            return f"❌ Error generating response with Google Gemini via API Gateway: {str(e)}"
 
     async def generate_response_stream(self, context: str, query: str, **kwargs) -> AsyncGenerator[str, None]:
-        """Generate streaming response using Modern Google model via Kong Gateway"""
+        """Generate streaming response using Modern Google model via API Gateway"""
 
         system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
         Use only the information from the context to answer questions. If the context doesn't contain relevant information,

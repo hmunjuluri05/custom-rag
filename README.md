@@ -8,7 +8,7 @@ A production-ready Retrieval-Augmented Generation (RAG) system with multi-agent 
 - **📊 Multiple Embedding Models**: OpenAI and Google embedding models
 - **🔧 Multiple Chunking Strategies**: From simple character-based to semantic chunking
 - **🌐 Web Interface**: Admin panel for testing and chat interface for queries
-- **🔗 API Gateway Support**: Enterprise-ready with Kong integration
+- **🔗 API Gateway Support**: Enterprise-ready with configurable API gateway integration
 - **⚡ Agentic RAG System**: Advanced reasoning with specialized tools
 
 ## Quick Start
@@ -42,7 +42,7 @@ cp .env.example .env
 
 Edit `.env` file:
 ```bash
-# Required: Your API key (for Kong Gateway or direct provider access)
+# Required: Your API key (for API Gateway or direct provider access)
 API_KEY=your_api_key_here
 
 # Optional: Gateway Base URL (models.yaml defines specific gateway paths)
@@ -111,21 +111,21 @@ In Admin Panel:
 ## Configuration
 
 ### Environment Variables
-- `API_KEY`: Your API key for Kong Gateway or direct provider access (required)
+- `API_KEY`: Your API key for API Gateway or direct provider access (required)
 - `BASE_URL`: Optional gateway base URL (models.yaml defines specific paths)
 - `DEFAULT_LLM_PROVIDER`: openai or google (defaults from config/models.yaml)
 - `DEFAULT_LLM_MODEL`: Model name (defaults from config/models.yaml)
 - `DEFAULT_EMBEDDING_MODEL`: Embedding model (defaults from config/models.yaml)
 
 ### Configuration Files
-- `config/models.yaml`: Centralized model configuration with gateway URLs and Kong headers
+- `config/models.yaml`: Centralized model configuration with gateway URLs and custom headers
 - `.env`: Environment variables for API keys and optional overrides
 
-### Kong API Gateway Support
-The system supports Kong API Gateway with the correct header format:
-- **Headers**: `{"api-key": "your_key", "ai-gateway-version": "v2"}`
+### API Gateway Support
+The system supports API Gateway integration with configurable header format:
+- **Headers**: Customizable via `config/models.yaml` (e.g., `{"api-key": "your_key", "ai-gateway-version": "v2"}`)
 - **Configuration**: Automatically handled via `config/models.yaml`
-- **Models**: All LLM and embedding models support Kong Gateway routing
+- **Models**: All LLM and embedding models support API Gateway routing
 - **Fallback**: Direct provider URLs when BASE_URL is not configured
 
 ### File Support
@@ -175,7 +175,7 @@ graph TB
     end
 
     subgraph "API Gateway"
-        Q[Kong API Gateway]
+        Q[API Gateway]
     end
 
     A --> C
