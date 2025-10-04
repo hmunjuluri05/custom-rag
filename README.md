@@ -30,13 +30,17 @@ Traditional chunking methods split documents using fixed rules (character count,
 - **Trade-off**: Slower processing (~5-10 seconds per document)
 
 #### 2. **LLM Enhanced Chunking** (Hybrid - Recommended)
-- **How it works**: Fast rule-based chunking first, then LLM refines boundaries
+- **How it works**:
+  1. **Step 1**: Fast rule-based chunking using **Recursive Character Text Splitter** (LangChain's most effective splitter)
+  2. **Step 2**: LLM reviews and refines the chunk boundaries for better semantic coherence
+  3. **Step 3**: Optional metadata enrichment (if configured)
 - **Benefits**:
   - Balanced speed and quality
   - AI validates and improves chunk boundaries
   - Production-ready performance
 - **Best for**: Most use cases, production environments
 - **Trade-off**: Moderate processing time (~2-5 seconds per document)
+- **Technical Detail**: Uses `RecursiveCharacterTextSplitter` with separators `["\n\n", "\n", " ", ""]` for initial chunking
 
 ### AI Metadata Enrichment (Optional)
 
