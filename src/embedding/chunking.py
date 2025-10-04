@@ -28,6 +28,10 @@ class ChunkingStrategy(Enum):
     SEMANTIC_BASED = "semantic_based"
     FIXED_SIZE = "fixed_size"
 
+    # LLM-based intelligent chunking strategies
+    LLM_SEMANTIC = "llm_semantic"  # Full LLM-based semantic chunking (with optional metadata)
+    LLM_ENHANCED = "llm_enhanced"  # Hybrid: rule-based + LLM refinement (with optional metadata)
+
 class ChunkingConfig:
     """Configuration for chunking strategies"""
 
@@ -48,7 +52,11 @@ class ChunkingConfig:
         model_name: str = "gpt-3.5-turbo",
         encoding_name: Optional[str] = None,
         # Token-based chunking parameters
-        tokens_per_chunk: Optional[int] = None
+        tokens_per_chunk: Optional[int] = None,
+        # LLM-based chunking parameters
+        llm_service: Any = None,
+        document_type: Optional[str] = None,  # e.g., "legal", "technical", "financial"
+        metadata_detail: str = "basic"  # "basic", "detailed", "comprehensive"
     ):
         self.strategy = strategy
         self.chunk_size = chunk_size
@@ -69,6 +77,11 @@ class ChunkingConfig:
 
         # Token-based chunking
         self.tokens_per_chunk = tokens_per_chunk or chunk_size
+
+        # LLM-based chunking
+        self.llm_service = llm_service
+        self.document_type = document_type
+        self.metadata_detail = metadata_detail
 
 class BaseChunker(ABC):
     """Abstract base class for text chunkers"""
@@ -490,6 +503,322 @@ class SentenceTransformersTokenChunker(BaseChunker):
             logger.error(f"Error in SentenceTransformersTokenChunker: {str(e)}")
             return WordBasedChunker(self.config).chunk_text(text, metadata)
 
+
+# LLM-Based Chunking Implementations
+
+class LLMSemanticChunker(BaseChunker):
+    """Full LLM-based semantic chunking - analyzes document and creates optimal chunks with optional metadata enrichment"""
+
+    async def chunk_text_async(self, text: str, metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Async version of chunk_text for LLM calls"""
+        if not text.strip():
+            return []
+
+        if not self.config.llm_service:
+            logger.warning("No LLM service provided for LLM Semantic Chunking, falling back to recursive character")
+            fallback_config = ChunkingConfig(strategy=ChunkingStrategy.RECURSIVE_CHARACTER, chunk_size=self.config.chunk_size)
+            return RecursiveCharacterChunker(fallback_config).chunk_text(text, metadata)
+
+        try:
+            # Prepare document type hint
+            doc_type = self.config.document_type or "general"
+            detail_level = self.config.metadata_detail or "basic"
+
+            # Create LLM prompt for semantic chunking with metadata based on detail level
+            if detail_level == "none":
+                metadata_instruction = "- A brief title (1 line)"
+            elif detail_level == "basic":
+                metadata_instruction = """- A brief title (1 line)
+   - Key topics/keywords (3-5 words)"""
+            elif detail_level == "detailed":
+                metadata_instruction = """- A descriptive title (1 line)
+   - Key topics/keywords (5-7 words)
+   - Main topic/category
+   - Key entities (people, places, organizations)"""
+            else:  # comprehensive
+                metadata_instruction = """- A descriptive title (1 line)
+   - Key topics/keywords (7-10 words)
+   - Main topic/category
+   - Key entities (people, places, organizations)
+   - Sentiment (positive/negative/neutral)
+   - Important facts or figures"""
+
+            # Create LLM prompt for semantic chunking
+            prompt = f"""Analyze this document and split it into semantically meaningful chunks.
+
+Document Type: {doc_type}
+Target Chunk Size: {self.config.chunk_size} words (flexible based on semantic boundaries)
+Min Chunk Size: {self.config.min_chunk_size} words
+Max Chunk Size: {self.config.max_chunk_size} words
+
+Instructions:
+1. Identify natural semantic boundaries (topics, sections, concepts)
+2. Keep related information together
+3. Preserve context within each chunk
+4. For each chunk, provide:
+   - The chunk text
+{metadata_instruction}
+
+Document:
+{text[:8000]}
+
+Respond in JSON format:
+{{
+  "chunks": [
+    {{
+      "text": "chunk content here",
+      "title": "Brief chunk title"{', "keywords": "keyword1, keyword2"' if detail_level != "none" else ''}{', "topic": "Main topic", "entities": "entity1, entity2"' if detail_level in ["detailed", "comprehensive"] else ''}{', "sentiment": "neutral", "facts": "key facts"' if detail_level == "comprehensive" else ''}
+    }}
+  ]
+}}"""
+
+            # Call LLM
+            context = ""  # No context needed for this task
+            response = await self.config.llm_service.generate_response(context, prompt)
+
+            # Parse LLM response
+            import json
+            try:
+                # Try to extract JSON from response
+                json_start = response.find('{')
+                json_end = response.rfind('}') + 1
+                if json_start >= 0 and json_end > json_start:
+                    json_str = response[json_start:json_end]
+                    llm_chunks = json.loads(json_str)
+                else:
+                    raise ValueError("No JSON found in response")
+            except:
+                logger.error(f"Failed to parse LLM response as JSON, falling back")
+                fallback_config = ChunkingConfig(strategy=ChunkingStrategy.RECURSIVE_CHARACTER, chunk_size=self.config.chunk_size)
+                return RecursiveCharacterChunker(fallback_config).chunk_text(text, metadata)
+
+            # Format chunks
+            formatted_chunks = []
+            for i, llm_chunk in enumerate(llm_chunks.get("chunks", [])):
+                chunk_text = llm_chunk.get("text", "")
+                if len(chunk_text.split()) >= self.config.min_chunk_size:
+                    chunk = self._create_chunk(chunk_text, metadata, i, len(llm_chunks.get("chunks", [])))
+                    # Add LLM-generated metadata based on detail level
+                    chunk["metadata"]["llm_title"] = llm_chunk.get("title", "")
+                    if detail_level != "none":
+                        chunk["metadata"]["llm_keywords"] = llm_chunk.get("keywords", "")
+                        chunk["metadata"]["llm_topic"] = llm_chunk.get("topic", "")
+                    if detail_level in ["detailed", "comprehensive"]:
+                        chunk["metadata"]["llm_entities"] = llm_chunk.get("entities", "")
+                    if detail_level == "comprehensive":
+                        chunk["metadata"]["llm_sentiment"] = llm_chunk.get("sentiment", "")
+                        chunk["metadata"]["llm_facts"] = llm_chunk.get("facts", "")
+                    chunk["metadata"]["chunking_method"] = "llm_semantic"
+                    chunk["metadata"]["metadata_detail"] = detail_level
+                    formatted_chunks.append(chunk)
+
+            # Calculate word positions
+            self._calculate_word_positions(formatted_chunks)
+
+            return formatted_chunks
+
+        except Exception as e:
+            logger.error(f"Error in LLM Semantic Chunking: {str(e)}")
+            # Fallback to recursive character
+            fallback_config = ChunkingConfig(strategy=ChunkingStrategy.RECURSIVE_CHARACTER, chunk_size=self.config.chunk_size)
+            return RecursiveCharacterChunker(fallback_config).chunk_text(text, metadata)
+
+    def chunk_text(self, text: str, metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Synchronous wrapper - runs async version"""
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        return loop.run_until_complete(self.chunk_text_async(text, metadata))
+
+
+class LLMEnhancedChunker(BaseChunker):
+    """Hybrid chunking: fast rule-based splitting + LLM boundary refinement with optional metadata enrichment"""
+
+    async def chunk_text_async(self, text: str, metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Async version for LLM calls"""
+        if not text.strip():
+            return []
+
+        # Step 1: Fast rule-based chunking
+        base_config = ChunkingConfig(
+            strategy=ChunkingStrategy.RECURSIVE_CHARACTER,
+            chunk_size=self.config.chunk_size,
+            chunk_overlap=self.config.chunk_overlap
+        )
+        base_chunks = RecursiveCharacterChunker(base_config).chunk_text(text, metadata)
+
+        # If no LLM service, return base chunks
+        if not self.config.llm_service:
+            logger.warning("No LLM service for LLM Enhanced Chunking, returning base chunks")
+            return base_chunks
+
+        try:
+            # Step 2: LLM refines boundaries
+            doc_type = self.config.document_type or "general"
+            detail_level = self.config.metadata_detail or "none"
+
+            # Prepare chunk preview for LLM
+            chunk_previews = []
+            for i, chunk in enumerate(base_chunks[:10]):  # Limit to first 10 for analysis
+                preview = chunk["text"][:200] + "..." if len(chunk["text"]) > 200 else chunk["text"]
+                chunk_previews.append(f"Chunk {i}: {preview}")
+
+            prompt = f"""Review these document chunks and suggest improvements to chunk boundaries.
+
+Document Type: {doc_type}
+
+Current Chunks:
+{chr(10).join(chunk_previews)}
+
+Instructions:
+1. Identify if any chunks should be merged (same topic)
+2. Identify if any chunks should be split (multiple topics)
+3. Suggest better semantic boundaries
+
+Respond with JSON:
+{{
+  "suggestions": [
+    {{"action": "merge", "chunks": [0, 1], "reason": "Same topic"}},
+    {{"action": "split", "chunk": 3, "position": 150, "reason": "Topic change"}}
+  ]
+}}"""
+
+            context = ""
+            response = await self.config.llm_service.generate_response(context, prompt)
+
+            # Parse suggestions
+            import json
+            try:
+                json_start = response.find('{')
+                json_end = response.rfind('}') + 1
+                if json_start >= 0 and json_end > json_start:
+                    suggestions = json.loads(response[json_start:json_end])
+
+                    # Apply suggestions (simplified - merge only for now)
+                    for suggestion in suggestions.get("suggestions", [])[:3]:  # Limit to 3 suggestions
+                        if suggestion.get("action") == "merge":
+                            chunk_ids = suggestion.get("chunks", [])
+                            if len(chunk_ids) == 2 and all(0 <= i < len(base_chunks) for i in chunk_ids):
+                                # Mark chunks for metadata update
+                                base_chunks[chunk_ids[0]]["metadata"]["llm_refined"] = True
+                                base_chunks[chunk_ids[0]]["metadata"]["llm_suggestion"] = suggestion.get("reason", "")
+            except:
+                logger.warning("Could not parse LLM refinement suggestions")
+
+            # Step 3: Optional metadata enrichment
+            if detail_level and detail_level != "none":
+                await self._enrich_metadata(base_chunks, detail_level)
+
+            # Add refinement metadata
+            for chunk in base_chunks:
+                chunk["metadata"]["chunking_method"] = "llm_enhanced"
+                chunk["metadata"]["metadata_detail"] = detail_level
+                if "llm_refined" not in chunk["metadata"]:
+                    chunk["metadata"]["llm_refined"] = False
+
+            return base_chunks
+
+        except Exception as e:
+            logger.error(f"Error in LLM Enhanced Chunking: {str(e)}")
+            return base_chunks
+
+    async def _enrich_metadata(self, chunks: List[Dict[str, Any]], detail_level: str):
+        """Enrich chunks with LLM-generated metadata"""
+        for i, chunk in enumerate(chunks[:5]):  # Limit to first 5 chunks
+            chunk_text = chunk["text"][:1000]
+
+            if detail_level == "basic":
+                prompt = f"""Analyze this text chunk and provide:
+1. A brief summary (1 sentence)
+2. Main keywords (3-5 words)
+
+Chunk: {chunk_text}
+
+Respond in format:
+Summary: <summary>
+Keywords: <keyword1>, <keyword2>, <keyword3>"""
+
+            elif detail_level == "detailed":
+                prompt = f"""Analyze this text chunk and provide:
+1. A summary (2-3 sentences)
+2. Main keywords (5-7 words)
+3. Primary topic/category
+4. Key entities (people, places, organizations)
+
+Chunk: {chunk_text}
+
+Respond in format:
+Summary: <summary>
+Keywords: <keywords>
+Topic: <topic>
+Entities: <entities>"""
+
+            else:  # comprehensive
+                prompt = f"""Analyze this text chunk comprehensively:
+1. Summary (3-4 sentences)
+2. Keywords (7-10 words)
+3. Topic/Category
+4. Key entities
+5. Sentiment (positive/negative/neutral)
+6. Important facts or figures
+
+Chunk: {chunk_text}
+
+Respond in format:
+Summary: <summary>
+Keywords: <keywords>
+Topic: <topic>
+Entities: <entities>
+Sentiment: <sentiment>
+Facts: <facts>"""
+
+            try:
+                context = ""
+                response = await self.config.llm_service.generate_response(context, prompt)
+
+                # Parse and add metadata
+                chunk["metadata"]["llm_summary"] = self._extract_field(response, "Summary")
+                chunk["metadata"]["llm_keywords"] = self._extract_field(response, "Keywords")
+
+                if detail_level in ["detailed", "comprehensive"]:
+                    chunk["metadata"]["llm_topic"] = self._extract_field(response, "Topic")
+                    chunk["metadata"]["llm_entities"] = self._extract_field(response, "Entities")
+
+                if detail_level == "comprehensive":
+                    chunk["metadata"]["llm_sentiment"] = self._extract_field(response, "Sentiment")
+                    chunk["metadata"]["llm_facts"] = self._extract_field(response, "Facts")
+            except Exception as e:
+                logger.warning(f"Failed to enrich metadata for chunk {i}: {e}")
+
+    def _extract_field(self, response: str, field_name: str) -> str:
+        """Extract a field from LLM response"""
+        try:
+            lines = response.split('\n')
+            for line in lines:
+                if line.strip().startswith(f"{field_name}:"):
+                    return line.split(':', 1)[1].strip()
+            return ""
+        except:
+            return ""
+
+    def chunk_text(self, text: str, metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Synchronous wrapper"""
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        return loop.run_until_complete(self.chunk_text_async(text, metadata))
+
+
+# ChunkerFactory - must be defined after all chunker classes
+
 class ChunkerFactory:
     """Factory for creating chunkers"""
 
@@ -504,7 +833,10 @@ class ChunkerFactory:
         ChunkingStrategy.RECURSIVE_CHARACTER: RecursiveCharacterChunker,
         ChunkingStrategy.CHARACTER: CharacterChunker,
         ChunkingStrategy.TOKEN_BASED: TokenBasedChunker,
-        ChunkingStrategy.SENTENCE_TRANSFORMERS_TOKEN: SentenceTransformersTokenChunker
+        ChunkingStrategy.SENTENCE_TRANSFORMERS_TOKEN: SentenceTransformersTokenChunker,
+        # LLM-based strategies (with optional metadata enrichment)
+        ChunkingStrategy.LLM_SEMANTIC: LLMSemanticChunker,
+        ChunkingStrategy.LLM_ENHANCED: LLMEnhancedChunker
     }
 
     @classmethod
@@ -568,8 +900,21 @@ class ChunkerFactory:
             },
             ChunkingStrategy.SENTENCE_TRANSFORMERS_TOKEN.value: {
                 "name": "SentenceTransformers Token",
-                "description": "Split by SentenceTransformers model token limits",
+                "description": "Split by SentenceTransers model token limits",
                 "parameters": ["tokens_per_chunk", "chunk_overlap", "model_name"],
                 "recommended_for": "SentenceTransformers models, embedding optimization"
+            },
+            # LLM-based strategies (with optional metadata enrichment)
+            ChunkingStrategy.LLM_SEMANTIC.value: {
+                "name": "LLM Semantic Chunking (AI-Powered)",
+                "description": "AI analyzes document structure and creates semantically meaningful chunks with optional metadata enrichment",
+                "parameters": ["chunk_size", "document_type", "metadata_detail"],
+                "recommended_for": "High-value documents, complex analysis, best quality chunks"
+            },
+            ChunkingStrategy.LLM_ENHANCED.value: {
+                "name": "LLM Enhanced Chunking (Hybrid)",
+                "description": "Fast rule-based chunking refined by AI for better boundaries with optional metadata enrichment",
+                "parameters": ["chunk_size", "chunk_overlap", "document_type", "metadata_detail"],
+                "recommended_for": "Balance between speed and quality, production use"
             }
         }

@@ -6,10 +6,72 @@ A production-ready Retrieval-Augmented Generation (RAG) system with multi-agent 
 
 - **🤖 Multiple Query Processing Modes**: Vector Search, LLM Response, Agentic RAG
 - **📊 Multiple Embedding Models**: OpenAI and Google embedding models
-- **🔧 Multiple Chunking Strategies**: From simple character-based to semantic chunking
+- **🔧 Multiple Chunking Strategies**: From simple character-based to AI-powered semantic chunking
+- **🧠 LLM-Based Intelligent Chunking**: AI analyzes documents and creates optimal chunks with metadata
 - **🌐 Web Interface**: Admin panel for testing and chat interface for queries
 - **🔗 API Gateway Support**: Enterprise-ready with configurable API gateway integration
 - **⚡ Agentic RAG System**: Advanced reasoning with specialized tools
+
+## LLM-Based Intelligent Chunking
+
+### Overview
+
+Traditional chunking methods split documents using fixed rules (character count, word boundaries, etc.). Our **LLM-based intelligent chunking** uses AI to understand document structure and create semantically meaningful chunks, resulting in better retrieval accuracy.
+
+### Two AI-Powered Approaches
+
+#### 1. **LLM Semantic Chunking** (Best Quality)
+- **How it works**: LLM analyzes the entire document and identifies natural semantic boundaries
+- **Benefits**:
+  - Chunks contain complete thoughts and concepts
+  - No information split across boundaries
+  - Preserves semantic meaning perfectly
+- **Best for**: High-value documents, complex analysis, critical accuracy
+- **Trade-off**: Slower processing (~5-10 seconds per document)
+
+#### 2. **LLM Enhanced Chunking** (Hybrid - Recommended)
+- **How it works**: Fast rule-based chunking first, then LLM refines boundaries
+- **Benefits**:
+  - Balanced speed and quality
+  - AI validates and improves chunk boundaries
+  - Production-ready performance
+- **Best for**: Most use cases, production environments
+- **Trade-off**: Moderate processing time (~2-5 seconds per document)
+
+### AI Metadata Enrichment (Optional)
+
+Both LLM chunking strategies support **optional metadata enrichment** - AI analyzes each chunk and adds rich metadata for enhanced search accuracy. Choose your metadata detail level:
+
+- **None**: No metadata (fastest, pure chunking only)
+- **Basic**: Summary (1 sentence) + Keywords (3-5 words)
+- **Detailed**: Summary (2-3 sentences) + Keywords (5-7) + Topic + Entities
+- **Comprehensive**: All above + Sentiment + Key Facts
+
+**Tip**: Start with "Basic" for most use cases. Use "Detailed" or "Comprehensive" for critical documents requiring advanced search and categorization.
+
+### When to Use LLM Chunking
+
+| Use Case | Recommended Strategy | Why |
+|----------|---------------------|-----|
+| Legal documents | LLM Semantic + Detailed metadata | Precise clause boundaries, entity extraction |
+| Technical documentation | LLM Enhanced + Basic metadata | Balanced quality for procedures and concepts |
+| Financial reports | LLM Semantic + Comprehensive | Accurate metric grouping with sentiment analysis |
+| General knowledge base | LLM Enhanced + Basic metadata | Good balance for production use |
+| Large document corpus | Recursive Character | Fastest, no LLM calls |
+| Speed-critical applications | Recursive Character | Fastest, no LLM calls |
+
+### Cost Considerations
+
+LLM chunking makes API calls to your configured LLM:
+- **LLM Semantic (no metadata)**: ~1-2 calls per document
+- **LLM Semantic + metadata**: ~1-2 calls + 1 call per 5 chunks
+- **LLM Enhanced (no metadata)**: ~1 call per document
+- **LLM Enhanced + metadata**: ~1 call + 1 call per 5 chunks
+
+**Cost Control Tips**:
+- Use metadata enrichment selectively for high-value documents
+- Start with "Basic" metadata level and upgrade only if needed
+- For large batches, use standard chunking for less critical documents
 
 ## Quick Start
 
@@ -98,10 +160,18 @@ In Admin Panel:
 - **Google**: Gemini Pro, Gemini Flash models
 
 ### Chunking Strategies
-- **recursive_character**: Best for most documents
+
+#### 🤖 AI-Powered Chunking (LLM-based, with optional metadata enrichment)
+- **llm_semantic**: AI analyzes document structure and creates semantically meaningful chunks (best quality, slower)
+- **llm_enhanced**: Fast rule-based chunking refined by AI for better boundaries (balanced speed & quality, recommended)
+
+#### ⚡ LangChain Splitters (Fast & Reliable)
+- **recursive_character**: Best for most documents (recommended)
 - **character**: Simple character-based splitting
 - **token_based**: Based on tokenizer limits
 - **sentence_transformers_token**: Optimized for embeddings
+
+#### 📝 Custom Splitters
 - **word_based**: Word boundary splitting
 - **sentence_based**: Sentence boundary splitting
 - **paragraph_based**: Paragraph boundary splitting

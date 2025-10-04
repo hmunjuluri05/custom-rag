@@ -43,6 +43,15 @@
             max-height: 400px;
             overflow-y: auto;
         }
+        .ai-metadata-section {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-left: 4px solid #0d6efd;
+        }
+        .chunk-content {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
     </style>
 </head>
 <body>
@@ -283,13 +292,17 @@
                                 <div class="col-md-6">
                                     <label class="form-label">Chunking Strategy</label>
                                     <select class="form-select" id="chunkingStrategy" onchange="updateChunkingOptions()">
-                                        <optgroup label="LangChain Splitters (Recommended)">
-                                            <option value="recursive_character">Recursive Character (Best)</option>
+                                        <optgroup label="🤖 AI-Powered Chunking (LLM-based)">
+                                            <option value="llm_semantic">LLM Semantic Chunking (Best Quality)</option>
+                                            <option value="llm_enhanced">LLM Enhanced Chunking (Hybrid - Recommended)</option>
+                                        </optgroup>
+                                        <optgroup label="⚡ LangChain Splitters (Fast & Reliable)">
+                                            <option value="recursive_character" selected>Recursive Character</option>
                                             <option value="character">Character-based</option>
                                             <option value="token_based">Token-based (GPT Models)</option>
                                             <option value="sentence_transformers_token">SentenceTransformers Token</option>
                                         </optgroup>
-                                        <optgroup label="Custom Splitters">
+                                        <optgroup label="📝 Custom Splitters">
                                             <option value="word_based">Word-based</option>
                                             <option value="sentence_based">Sentence-based</option>
                                             <option value="paragraph_based">Paragraph-based</option>
@@ -308,6 +321,22 @@
                                 <div class="col-md-3">
                                     <label class="form-label">Chunk Overlap</label>
                                     <input type="number" class="form-control" id="chunkOverlap" value="200" min="0" max="1000">
+                                </div>
+                            </div>
+                            <div id="llmMetadataOptions" class="mt-3" style="display: none;">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label class="form-label">🤖 AI Metadata Enrichment</label>
+                                        <select class="form-select" id="metadataDetail">
+                                            <option value="none">None (No metadata)</option>
+                                            <option value="basic" selected>Basic (Summary + Keywords)</option>
+                                            <option value="detailed">Detailed (+ Topics + Entities)</option>
+                                            <option value="comprehensive">Comprehensive (+ Sentiment + Facts)</option>
+                                        </select>
+                                        <small class="form-text text-muted">
+                                            AI analyzes chunks and adds metadata for better search accuracy
+                                        </small>
+                                    </div>
                                 </div>
                             </div>
                             <div id="additionalChunkingOptions" class="mt-3">

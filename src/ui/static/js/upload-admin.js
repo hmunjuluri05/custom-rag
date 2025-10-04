@@ -507,28 +507,109 @@ function showDocumentModal(chunks) {
     if (!chunks || chunks.length === 0) {
         modalBody.innerHTML = '<p class="text-muted">No chunks available</p>';
     } else {
+        // Check if this is AI-assisted chunking
+        const isAIChunking = chunks.length > 0 && chunks[0].metadata &&
+                            (chunks[0].metadata.chunking_method === 'llm_semantic' ||
+                             chunks[0].metadata.chunking_method === 'llm_enhanced');
+
+        const chunkingStrategy = chunks[0]?.metadata?.chunking_strategy || 'unknown';
+        const metadataDetail = chunks[0]?.metadata?.metadata_detail || 'none';
+
         let html = `
             <div class="mb-3">
                 <h6>Document Chunks (${chunks.length})</h6>
-                <p class="text-muted">This document has been split into ${chunks.length} chunks for processing.</p>
+                <p class="text-muted">
+                    This document has been split into ${chunks.length} chunks using
+                    <strong>${chunkingStrategy.replace(/_/g, ' ')}</strong> strategy.
+                    ${isAIChunking ? '<span class="badge bg-primary ms-2"><i class="bi bi-robot"></i> AI-Assisted</span>' : ''}
+                </p>
             </div>
             <div class="accordion" id="chunksAccordion">
         `;
 
         chunks.forEach((chunk, index) => {
+            const metadata = chunk.metadata || {};
+
+            // Build metadata badges for AI chunking
+            let metadataBadges = '';
+            if (isAIChunking && metadataDetail !== 'none') {
+                if (metadata.llm_title) {
+                    metadataBadges += `<span class="badge bg-info me-1" title="AI-generated title"><i class="bi bi-tag"></i> ${metadata.llm_title}</span>`;
+                }
+            }
+
             html += `
                 <div class="accordion-item">
                     <h2 class="accordion-header">
                         <button class="accordion-button collapsed" type="button"
                                 data-bs-toggle="collapse" data-bs-target="#chunk${index}">
-                            Chunk ${index + 1}
-                            <small class="text-muted ms-2">(Words: ${chunk.word_range})</small>
+                            <div class="d-flex align-items-center w-100">
+                                <span>Chunk ${index + 1}</span>
+                                <small class="text-muted ms-2">(Words: ${chunk.word_range})</small>
+                                ${metadataBadges ? `<div class="ms-auto me-3">${metadataBadges}</div>` : ''}
+                            </div>
                         </button>
                     </h2>
                     <div id="chunk${index}" class="accordion-collapse collapse"
                          data-bs-parent="#chunksAccordion">
                         <div class="accordion-body">
-                            <div style="max-height: 200px; overflow-y: auto;">
+            `;
+
+            // Show AI metadata if available
+            if (isAIChunking && metadataDetail !== 'none') {
+                html += '<div class="alert alert-light border mb-3 ai-metadata-section">';
+                html += '<h6 class="mb-2"><i class="bi bi-robot text-primary"></i> AI-Generated Metadata</h6>';
+
+                if (metadata.llm_title) {
+                    html += `<div class="mb-2"><strong>Title:</strong> ${metadata.llm_title}</div>`;
+                }
+
+                if (metadata.llm_keywords) {
+                    const keywords = metadata.llm_keywords.split(',').map(k => k.trim()).filter(k => k);
+                    if (keywords.length > 0) {
+                        html += `<div class="mb-2"><strong>Keywords:</strong> `;
+                        keywords.forEach(keyword => {
+                            html += `<span class="badge bg-secondary me-1">${keyword}</span>`;
+                        });
+                        html += `</div>`;
+                    }
+                }
+
+                if (metadata.llm_topic) {
+                    html += `<div class="mb-2"><strong>Topic:</strong> <span class="badge bg-primary">${metadata.llm_topic}</span></div>`;
+                }
+
+                if (metadata.llm_summary) {
+                    html += `<div class="mb-2"><strong>Summary:</strong> <em>${metadata.llm_summary}</em></div>`;
+                }
+
+                if (metadata.llm_entities) {
+                    const entities = metadata.llm_entities.split(',').map(e => e.trim()).filter(e => e);
+                    if (entities.length > 0) {
+                        html += `<div class="mb-2"><strong>Entities:</strong> `;
+                        entities.forEach(entity => {
+                            html += `<span class="badge bg-success me-1">${entity}</span>`;
+                        });
+                        html += `</div>`;
+                    }
+                }
+
+                if (metadata.llm_sentiment) {
+                    const sentimentColor = metadata.llm_sentiment.toLowerCase().includes('positive') ? 'success' :
+                                          metadata.llm_sentiment.toLowerCase().includes('negative') ? 'danger' : 'secondary';
+                    html += `<div class="mb-2"><strong>Sentiment:</strong> <span class="badge bg-${sentimentColor}">${metadata.llm_sentiment}</span></div>`;
+                }
+
+                if (metadata.llm_facts) {
+                    html += `<div class="mb-2"><strong>Key Facts:</strong> ${metadata.llm_facts}</div>`;
+                }
+
+                html += '</div>';
+            }
+
+            // Show chunk content
+            html += `
+                            <div class="border rounded p-2 chunk-content" style="max-height: 200px; overflow-y: auto; background-color: #f8f9fa;">
                                 ${chunk.content}
                             </div>
                         </div>
@@ -1154,8 +1235,32 @@ function updateChunkingOptions() {
     const tokenConfigOptions = document.getElementById('tokenConfigOptions');
     const stTokenConfigOptions = document.getElementById('stTokenConfigOptions');
 
+    // Show/hide metadata enrichment options for LLM strategies
+    const llmMetadataOptions = document.getElementById('llmMetadataOptions');
+    const isLLMStrategy = strategy === 'llm_semantic' || strategy === 'llm_enhanced';
+    if (llmMetadataOptions) {
+        llmMetadataOptions.style.display = isLLMStrategy ? 'block' : 'none';
+    }
+
     // Update descriptions and units based on strategy
     const strategies = {
+        // LLM-based strategies (with optional metadata enrichment)
+        'llm_semantic': {
+            description: '🤖 AI analyzes document structure and creates semantically meaningful chunks. Add metadata enrichment below for enhanced search.',
+            sizeUnit: 'words (flexible)',
+            overlapUnit: 'N/A',
+            showAdvanced: false,
+            defaultSize: 1000,
+            defaultOverlap: 0
+        },
+        'llm_enhanced': {
+            description: '🤖 Fast rule-based chunking refined by AI for better boundaries. Add metadata enrichment below for enhanced search.',
+            sizeUnit: 'words',
+            overlapUnit: 'words',
+            showAdvanced: false,
+            defaultSize: 1000,
+            defaultOverlap: 200
+        },
         // LangChain strategies
         'recursive_character': {
             description: 'LangChain\'s most effective splitter - recursively splits by multiple separators',
