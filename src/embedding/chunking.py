@@ -58,6 +58,20 @@ class ChunkingConfig:
         document_type: Optional[str] = None,  # e.g., "legal", "technical", "financial"
         metadata_detail: str = "basic"  # "basic", "detailed", "comprehensive"
     ):
+        # Validation
+        if chunk_size <= 0:
+            raise ValueError(f"chunk_size must be positive, got {chunk_size}")
+        if chunk_overlap < 0:
+            raise ValueError(f"chunk_overlap must be non-negative, got {chunk_overlap}")
+        if chunk_overlap >= chunk_size:
+            logger.warning(f"chunk_overlap ({chunk_overlap}) should be less than chunk_size ({chunk_size}). Adjusting overlap to {chunk_size // 2}")
+            chunk_overlap = chunk_size // 2
+        if min_chunk_size < 0:
+            raise ValueError(f"min_chunk_size must be non-negative, got {min_chunk_size}")
+        if max_chunk_size < chunk_size:
+            logger.warning(f"max_chunk_size ({max_chunk_size}) is less than chunk_size ({chunk_size}). Setting max_chunk_size = chunk_size * 2")
+            max_chunk_size = chunk_size * 2
+
         self.strategy = strategy
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
@@ -81,6 +95,12 @@ class ChunkingConfig:
         # LLM-based chunking
         self.llm_service = llm_service
         self.document_type = document_type
+
+        # Validate metadata_detail
+        valid_details = ["none", "basic", "detailed", "comprehensive"]
+        if metadata_detail not in valid_details:
+            logger.warning(f"Invalid metadata_detail '{metadata_detail}'. Must be one of {valid_details}. Defaulting to 'basic'")
+            metadata_detail = "basic"
         self.metadata_detail = metadata_detail
 
 class BaseChunker(ABC):
@@ -538,6 +558,10 @@ class LLMSemanticChunker(BaseChunker):
             doc_type = self.config.document_type or "general"
             detail_level = self.config.metadata_detail or "basic"
 
+            # Warn if text will be truncated
+            if len(text) > 8000:
+                logger.warning(f"Document too long ({len(text)} chars). Truncating to 8000 chars for LLM semantic chunking.")
+
             # Create LLM prompt for semantic chunking with metadata based on detail level
             if detail_level == "none":
                 metadata_instruction = "- A brief title (1 line)"
@@ -574,7 +598,7 @@ Instructions:
 {metadata_instruction}
 
 Document:
-{text[:8000]}
+{text[:8000]}{"... [truncated]" if len(text) > 8000 else ""}
 
 Respond in JSON format:
 {{
@@ -610,7 +634,8 @@ Respond in JSON format:
             formatted_chunks = []
             for i, llm_chunk in enumerate(llm_chunks.get("chunks", [])):
                 chunk_text = llm_chunk.get("text", "")
-                if len(chunk_text.split()) >= self.config.min_chunk_size:
+                # Trust LLM chunking decisions - only skip truly empty chunks
+                if chunk_text.strip():
                     chunk = self._create_chunk(chunk_text, metadata, i, len(llm_chunks.get("chunks", [])))
                     # Add LLM-generated metadata based on detail level
                     chunk["metadata"]["llm_title"] = llm_chunk.get("title", "")
@@ -628,6 +653,12 @@ Respond in JSON format:
 
             # Calculate word positions
             self._calculate_word_positions(formatted_chunks)
+
+            # If LLM didn't return any valid chunks, fallback
+            if not formatted_chunks:
+                logger.warning("LLM Semantic Chunking returned no valid chunks, falling back to recursive character")
+                fallback_config = ChunkingConfig(strategy=ChunkingStrategy.RECURSIVE_CHARACTER, chunk_size=self.config.chunk_size)
+                return RecursiveCharacterChunker(fallback_config).chunk_text(text, metadata)
 
             return formatted_chunks
 
