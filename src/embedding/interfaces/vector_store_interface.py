@@ -42,3 +42,19 @@ class IVectorStore(ABC):
     def get_embedding_model_info(self) -> Dict[str, Any]:
         """Get information about the embedding model"""
         pass
+
+    @abstractmethod
+    async def hybrid_search(self,
+                           query: str,
+                           k: int = 5,
+                           filter_dict: Dict[str, Any] = None,
+                           use_metadata: bool = True,
+                           vector_weight: float = 0.7,
+                           metadata_weight: float = 0.3) -> List[Dict[str, Any]]:
+        """Perform hybrid search combining vector similarity and metadata matching"""
+        pass
+
+    @abstractmethod
+    async def get_documents(self, where_filter: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """Get documents matching filter criteria"""
+        pass

@@ -144,11 +144,76 @@ class RAGSystem:
             logger.error(f"Error querying RAG system: {str(e)}")
             raise Exception(f"Query failed: {str(e)}")
 
-    async def query_with_llm(self, query_text: str, top_k: int = 5, document_filter: Optional[str] = None) -> Dict[str, Any]:
+    async def hybrid_query(self, query_text: str, top_k: int = 5, document_filter: Optional[str] = None,
+                          use_metadata: bool = True, vector_weight: float = 0.7, metadata_weight: float = 0.3) -> List[Dict[str, Any]]:
+        """
+        Query using hybrid search (vector similarity + AI metadata matching).
+        Only beneficial when documents were chunked with LLM strategies (llm_semantic or llm_enhanced).
+
+        Args:
+            query_text: Search query
+            top_k: Number of results
+            document_filter: Optional document ID filter
+            use_metadata: Whether to use AI metadata (keywords, entities, topics)
+            vector_weight: Weight for vector similarity (0-1)
+            metadata_weight: Weight for metadata matching (0-1)
+        """
+        try:
+            # Build filter
+            where_filter = None
+            if document_filter:
+                where_filter = {"document_id": document_filter}
+
+            # Use hybrid search from vector store
+            results = await self.vector_store.hybrid_search(
+                query=query_text,
+                k=top_k,
+                filter_dict=where_filter,
+                use_metadata=use_metadata,
+                vector_weight=vector_weight,
+                metadata_weight=metadata_weight
+            )
+
+            # Format results for RAG response
+            formatted_results = []
+            for result in results:
+                formatted_result = {
+                    "content": result["content"],
+                    "filename": result["metadata"].get("filename", "Unknown"),
+                    "document_id": result["metadata"].get("document_id", ""),
+                    "chunk_index": result["metadata"].get("chunk_index", 0),
+                    "similarity_score": result.get("similarity_score", 0),
+                    "relevance_score": result.get("relevance_score", 0),
+                    "vector_score": result.get("vector_score", 0),
+                    "metadata_score": result.get("metadata_score", 0),
+                    "hybrid_score": result.get("hybrid_score", 0),
+                    "source_info": {
+                        "filename": result["metadata"].get("filename", "Unknown"),
+                        "chunk": f"{result['metadata'].get('chunk_index', 0) + 1}/{result['metadata'].get('total_chunks', 1)}",
+                        "document_type": result["metadata"].get("document_type", "unknown"),
+                        "chunking_method": result["metadata"].get("chunking_method", "unknown")
+                    }
+                }
+                formatted_results.append(formatted_result)
+
+            logger.info(f"Hybrid query '{query_text}' returned {len(formatted_results)} results")
+            return formatted_results
+
+        except Exception as e:
+            logger.error(f"Error in hybrid query: {str(e)}")
+            # Fallback to regular query
+            logger.warning("Falling back to regular vector search")
+            return await self.query(query_text, top_k, document_filter)
+
+    async def query_with_llm(self, query_text: str, top_k: int = 5, document_filter: Optional[str] = None,
+                            use_hybrid_search: bool = True) -> Dict[str, Any]:
         """Query the RAG system and generate response using LLM with source references"""
         try:
-            # Get relevant documents
-            results = await self.query(query_text, top_k, document_filter)
+            # Get relevant documents using hybrid search if enabled
+            if use_hybrid_search:
+                results = await self.hybrid_query(query_text, top_k, document_filter)
+            else:
+                results = await self.query(query_text, top_k, document_filter)
 
             if not results:
                 response = await self.llm_service.generate_response("", query_text)

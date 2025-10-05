@@ -157,6 +157,132 @@ class VectorStore(IVectorStore):
             logger.error(f"Error searching vector store: {str(e)}")
             raise Exception(f"Search failed: {str(e)}")
 
+    def _calculate_metadata_score(self, query: str, metadata: Dict[str, Any]) -> float:
+        """Calculate metadata matching score for AI-generated metadata"""
+        score = 0.0
+        query_lower = query.lower()
+        query_words = set(query_lower.split())
+
+        # Check if this chunk has AI-generated metadata
+        has_ai_metadata = metadata.get('chunking_method') in ['llm_semantic', 'llm_enhanced']
+
+        if not has_ai_metadata:
+            return 0.0  # No AI metadata to match
+
+        # Score based on keyword matching (30% of metadata score)
+        keywords = metadata.get('llm_keywords', '')
+        if keywords:
+            keyword_list = [k.strip().lower() for k in keywords.split(',')]
+            matched_keywords = sum(1 for kw in keyword_list if any(word in kw or kw in word for word in query_words))
+            if keyword_list:
+                score += (matched_keywords / len(keyword_list)) * 0.3
+
+        # Score based on topic matching (25% of metadata score)
+        topic = metadata.get('llm_topic', '').lower()
+        if topic:
+            topic_match = sum(1 for word in query_words if word in topic or topic in word)
+            if topic_match > 0:
+                score += 0.25
+
+        # Score based on entity matching (25% of metadata score)
+        entities = metadata.get('llm_entities', '')
+        if entities:
+            entity_list = [e.strip().lower() for e in entities.split(',')]
+            matched_entities = sum(1 for ent in entity_list if any(word in ent or ent in word for word in query_words))
+            if entity_list:
+                score += (matched_entities / len(entity_list)) * 0.25
+
+        # Score based on title matching (20% of metadata score)
+        title = metadata.get('llm_title', '').lower()
+        if title:
+            title_match = sum(1 for word in query_words if word in title)
+            if title_match > 0:
+                score += (title_match / len(query_words)) * 0.2
+
+        return min(1.0, score)  # Normalize to [0, 1]
+
+    async def hybrid_search(self,
+                           query: str,
+                           k: int = 5,
+                           filter_dict: Dict[str, Any] = None,
+                           use_metadata: bool = True,
+                           vector_weight: float = 0.7,
+                           metadata_weight: float = 0.3) -> List[Dict[str, Any]]:
+        """
+        Perform hybrid search combining vector similarity and AI-generated metadata matching.
+
+        Args:
+            query: Search query string
+            k: Number of results to return (will fetch more internally for reranking)
+            filter_dict: Optional filter for document selection
+            use_metadata: Whether to use metadata matching (only works with AI-chunked documents)
+            vector_weight: Weight for vector similarity score (0-1)
+            metadata_weight: Weight for metadata matching score (0-1)
+
+        Returns:
+            List of search results ranked by combined score
+        """
+        try:
+            # Normalize weights
+            total_weight = vector_weight + metadata_weight
+            if total_weight > 0:
+                vector_weight = vector_weight / total_weight
+                metadata_weight = metadata_weight / total_weight
+            else:
+                vector_weight = 0.7
+                metadata_weight = 0.3
+
+            # Fetch more results than requested for better reranking
+            fetch_k = min(k * 3, 50)  # Fetch 3x results or max 50
+
+            # Step 1: Get vector similarity results
+            vector_results = await self.search(query, top_k=fetch_k, where_filter=filter_dict)
+
+            if not use_metadata:
+                # Return top k vector results only
+                return vector_results[:k]
+
+            # Step 2: Calculate metadata scores and combine
+            hybrid_results = []
+            for result in vector_results:
+                metadata = result.get('metadata', {})
+
+                # Get vector similarity score (normalized 0-1)
+                vector_score = result.get('similarity_score', 0.0)
+
+                # Calculate metadata matching score
+                metadata_score = self._calculate_metadata_score(query, metadata)
+
+                # Combine scores
+                hybrid_score = (vector_weight * vector_score) + (metadata_weight * metadata_score)
+
+                # Add to results with hybrid score
+                hybrid_result = {
+                    **result,
+                    'vector_score': vector_score,
+                    'metadata_score': metadata_score,
+                    'hybrid_score': hybrid_score,
+                    'relevance_score': round(hybrid_score * 100, 2)  # Update relevance to hybrid score
+                }
+                hybrid_results.append(hybrid_result)
+
+            # Step 3: Re-rank by hybrid score
+            hybrid_results.sort(key=lambda x: x['hybrid_score'], reverse=True)
+
+            # Return top k results
+            top_results = hybrid_results[:k]
+
+            logger.info(f"Hybrid search for '{query}' returned {len(top_results)} results "
+                       f"(vector_weight={vector_weight:.2f}, metadata_weight={metadata_weight:.2f})")
+
+            return top_results
+
+        except Exception as e:
+            logger.error(f"Error in hybrid search: {str(e)}")
+            # Fallback to regular vector search
+            logger.warning("Falling back to vector-only search")
+            return await self.search(query, top_k=k, where_filter=filter_dict)
+
     async def get_documents(self,
                            ids: Optional[List[str]] = None,
                            where_filter: Optional[Dict[str, Any]] = None,
