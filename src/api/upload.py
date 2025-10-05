@@ -18,7 +18,9 @@ def create_upload_router(file_service, rag_system):
         chunk_size: int = Form(1000),
         chunk_overlap: int = Form(200),
         preserve_sentences: bool = Form(True),
-        preserve_paragraphs: bool = Form(False)
+        preserve_paragraphs: bool = Form(False),
+        document_type: Optional[str] = Form(None),
+        metadata_detail: str = Form("basic")
     ):
         """Upload and process multiple documents for RAG system"""
         try:
@@ -33,7 +35,10 @@ def create_upload_router(file_service, rag_system):
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap,
                 preserve_sentences=preserve_sentences,
-                preserve_paragraphs=preserve_paragraphs
+                preserve_paragraphs=preserve_paragraphs,
+                llm_service=rag_system.llm_service,
+                document_type=document_type,
+                metadata_detail=metadata_detail
             )
 
             # Process files using file service
@@ -74,7 +79,9 @@ def create_upload_router(file_service, rag_system):
                     "chunk_size": chunk_size,
                     "chunk_overlap": chunk_overlap,
                     "preserve_sentences": preserve_sentences,
-                    "preserve_paragraphs": preserve_paragraphs
+                    "preserve_paragraphs": preserve_paragraphs,
+                    "document_type": document_type,
+                    "metadata_detail": metadata_detail
                 }
             })
 

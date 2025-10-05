@@ -260,6 +260,12 @@ async function handleUpload(e) {
     formData.append('preserve_sentences', preserveSentencesEl ? preserveSentencesEl.checked : true);
     formData.append('preserve_paragraphs', preserveParagraphsEl ? preserveParagraphsEl.checked : false);
 
+    // Add LLM-specific parameters
+    const metadataDetailEl = document.getElementById('metadataDetail');
+    if (metadataDetailEl) {
+        formData.append('metadata_detail', metadataDetailEl.value);
+    }
+
     try {
         const response = await fetch('/api/upload-documents/', {
             method: 'POST',
@@ -512,7 +518,8 @@ function showDocumentModal(chunks) {
                             (chunks[0].metadata.chunking_method === 'llm_semantic' ||
                              chunks[0].metadata.chunking_method === 'llm_enhanced');
 
-        const chunkingStrategy = chunks[0]?.metadata?.chunking_strategy || 'unknown';
+        // Use chunking_method for LLM chunks, fall back to chunking_strategy
+        const chunkingStrategy = chunks[0]?.metadata?.chunking_method || chunks[0]?.metadata?.chunking_strategy || 'unknown';
         const metadataDetail = chunks[0]?.metadata?.metadata_detail || 'none';
 
         let html = `
