@@ -21,9 +21,18 @@ class UploadUI:
         @self.router.get("/upload", response_class=HTMLResponse)
         async def upload_page(request: Request):
             """Display file upload page"""
+            # Check if LLM chunking is enabled
+            from ..config.model_config import get_model_config
+            config = get_model_config()
+            llm_chunking_enabled = config.is_llm_chunking_enabled()
+
             return self.templates.TemplateResponse(
                 "upload.html",
-                {"request": request, "page_title": "Upload Documents"}
+                {
+                    "request": request,
+                    "page_title": "Upload Documents",
+                    "llm_chunking_enabled": llm_chunking_enabled
+                }
             )
 
         @self.router.get("/upload-status", response_class=HTMLResponse)

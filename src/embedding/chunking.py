@@ -909,7 +909,12 @@ class ChunkerFactory:
     @classmethod
     def get_available_strategies(cls) -> Dict[str, Dict[str, Any]]:
         """Get information about available chunking strategies"""
-        return {
+        # Check if LLM chunking is enabled
+        from ..config.model_config import get_model_config
+        config = get_model_config()
+        llm_chunking_enabled = config.is_llm_chunking_enabled()
+
+        strategies = {
             ChunkingStrategy.WORD_BASED.value: {
                 "name": "Word-based",
                 "description": "Split text based on word count with configurable overlap",
@@ -964,18 +969,22 @@ class ChunkerFactory:
                 "description": "Split by SentenceTransers model token limits",
                 "parameters": ["tokens_per_chunk", "chunk_overlap", "model_name"],
                 "recommended_for": "SentenceTransformers models, embedding optimization"
-            },
-            # LLM-based strategies (with optional metadata enrichment)
-            ChunkingStrategy.LLM_SEMANTIC.value: {
+            }
+        }
+
+        # Only include LLM-based strategies if enabled
+        if llm_chunking_enabled:
+            strategies[ChunkingStrategy.LLM_SEMANTIC.value] = {
                 "name": "LLM Semantic Chunking (AI-Powered)",
                 "description": "AI analyzes document structure and creates semantically meaningful chunks with optional metadata enrichment",
                 "parameters": ["chunk_size", "document_type", "metadata_detail"],
                 "recommended_for": "High-value documents, complex analysis, best quality chunks"
-            },
-            ChunkingStrategy.LLM_ENHANCED.value: {
+            }
+            strategies[ChunkingStrategy.LLM_ENHANCED.value] = {
                 "name": "LLM Enhanced Chunking (Hybrid)",
                 "description": "Fast rule-based chunking refined by AI for better boundaries with optional metadata enrichment",
                 "parameters": ["chunk_size", "chunk_overlap", "document_type", "metadata_detail"],
                 "recommended_for": "Balance between speed and quality, production use"
             }
-        }
+
+        return strategies

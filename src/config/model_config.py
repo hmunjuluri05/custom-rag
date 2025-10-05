@@ -195,6 +195,10 @@ class ModelConfigLoader:
         """Get the default LLM model"""
         return self._config.get('defaults', {}).get('llm_model', 'gpt-4')
 
+    def is_llm_chunking_enabled(self) -> bool:
+        """Check if LLM-based chunking is enabled"""
+        return self._config.get('features', {}).get('enable_llm_chunking', False)
+
     def is_valid_embedding_model(self, model_name: str) -> bool:
         """Check if an embedding model is valid"""
         return model_name in self._config.get('embedding_models', {})

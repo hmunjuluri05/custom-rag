@@ -111,6 +111,10 @@ gateway:
   # Whether to use gateway authentication (vs direct OpenAI/Google API keys)
   use_gateway_auth: true
 
+# Feature flags
+features:
+  enable_llm_chunking: false  # Set to true to enable AI-based chunking (LLM Semantic & LLM Enhanced)
+
 # Configuration validation
 validation:
   embedding_providers:
