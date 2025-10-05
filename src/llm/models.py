@@ -686,16 +686,17 @@ class LLMService(ILLMService):
     def change_model(self, provider, model_name: str = None, api_key: str = None, base_url: str = None) -> bool:
         """Change the LLM model"""
         try:
-            new_model = LLMFactory.create_model(provider, model_name)
+            # Handle both string and enum provider inputs
+            provider_str = provider.value if hasattr(provider, 'value') else provider
+
+            new_model = LLMFactory.create_model(provider_str, model_name)
             self.llm_model = new_model
-            self.provider = provider
+            self.provider = provider_str
             self.model_name = model_name
-            self.api_key = api_key
-            self.base_url = base_url
-            logger.info(f"Changed Modern LLM model to {provider.value}: {model_name}")
+            logger.info(f"Changed LLM model to {provider_str}: {model_name}")
             return True
         except Exception as e:
-            logger.error(f"Failed to change Modern LLM model: {str(e)}")
+            logger.error(f"Failed to change LLM model: {str(e)}")
             return False
 
     # Interface implementation methods
