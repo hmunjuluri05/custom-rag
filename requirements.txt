@@ -220,6 +220,8 @@ multidict==6.6.4
     #   yarl
 mypy-extensions==1.1.0
     # via typing-inspect
+nest-asyncio==1.6.0
+    # via custom-rag (pyproject.toml)
 networkx==3.5
     # via torch
 numpy==2.3.3

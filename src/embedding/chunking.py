@@ -671,13 +671,21 @@ Respond in JSON format:
     def chunk_text(self, text: str, metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Synchronous wrapper - runs async version"""
         import asyncio
+        import nest_asyncio
+
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
+            # We're inside an async context, use nest_asyncio
+            nest_asyncio.apply(loop)
+            return loop.run_until_complete(self.chunk_text_async(text, metadata))
         except RuntimeError:
+            # No running loop, create a new one
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self.chunk_text_async(text, metadata))
+            try:
+                return loop.run_until_complete(self.chunk_text_async(text, metadata))
+            finally:
+                loop.close()
 
 
 class LLMEnhancedChunker(BaseChunker):
@@ -853,13 +861,21 @@ Facts: <facts>"""
     def chunk_text(self, text: str, metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Synchronous wrapper"""
         import asyncio
+        import nest_asyncio
+
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
+            # We're inside an async context, use nest_asyncio
+            nest_asyncio.apply(loop)
+            return loop.run_until_complete(self.chunk_text_async(text, metadata))
         except RuntimeError:
+            # No running loop, create a new one
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self.chunk_text_async(text, metadata))
+            try:
+                return loop.run_until_complete(self.chunk_text_async(text, metadata))
+            finally:
+                loop.close()
 
 
 # ChunkerFactory - must be defined after all chunker classes
