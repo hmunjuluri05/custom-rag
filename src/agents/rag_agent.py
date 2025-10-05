@@ -171,32 +171,35 @@ class RAGAgent:
 
         # Create ReAct prompt template
         self.prompt = PromptTemplate.from_template("""You are an intelligent research assistant with access to a knowledge base of documents.
-You can search for information and analyze documents to provide comprehensive answers.
 
-When answering questions:
-1. Try to search the knowledge base for relevant information using available tools
-2. If the knowledge base is unavailable or contains no relevant information, use your general knowledge to provide helpful answers
-3. Analyze the results critically and provide clear, well-sourced answers
-4. Always be helpful and respond to the user's question, even if you cannot access the knowledge base
-5. If you cite sources from the knowledge base, mention the document names
-6. If using general knowledge, make it clear that the information is from your training rather than the knowledge base
+IMPORTANT: You MUST use the knowledge_search tool to search for information before answering questions. Do not assume the knowledge base is empty or unavailable - always try searching first.
 
-Your goal is to be as helpful as possible. Never refuse to answer a question due to technical issues.
+STRICT RULES:
+1. For EVERY question, your FIRST action MUST be to use knowledge_search tool with a relevant search query
+2. Only after receiving the search results can you formulate your final answer
+3. If search returns "No relevant information found", THEN you may use general knowledge
+4. NEVER skip the search step
+5. NEVER assume you already searched - always actually search
 
-You have access to the following tools:
+You have access to these tools:
 
 {tools}
 
-Use the following format:
+Use this EXACT format (follow it precisely):
 
 Question: the input question you must answer
-Thought: you should always think about what to do
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I now know the final answer
-Final Answer: the final answer to the original input question
+Thought: I need to search the knowledge base for information about [topic]
+Action: knowledge_search
+Action Input: [your search query here]
+Observation: [the search results will appear here]
+Thought: Based on the search results, I now know the final answer
+Final Answer: [your complete answer here]
+
+CRITICAL:
+- The Action must be EXACTLY "knowledge_search" (one of [{tool_names}])
+- The Action Input must be a clear search query
+- Wait for Observation before Final Answer
+- Do NOT skip steps or assume you already searched
 
 Begin!
 
@@ -211,6 +214,20 @@ Thought:{agent_scratchpad}""")
 
         logger.info("RAG Agent initialized with knowledge base tools")
 
+    def _handle_parsing_error(self, error) -> str:
+        """Custom handler for parsing errors - guides the agent back on track"""
+        error_str = str(error)
+        logger.warning(f"Agent parsing error occurred: {error_str}")
+
+        # Return a helpful message that guides the agent to use the correct format
+        return """Invalid format detected. You MUST follow this exact format:
+
+Thought: I need to search the knowledge base for [topic]
+Action: knowledge_search
+Action Input: [search query]
+
+Please try again using the EXACT format above. Start with 'Thought:', then 'Action: knowledge_search', then 'Action Input: [your query]'"""
+
     async def create_agent_executor(self) -> AgentExecutor:
         """Create the agent executor with tools and LLM"""
         try:
@@ -223,13 +240,13 @@ Thought:{agent_scratchpad}""")
             # Create the ReAct agent (works with any LLM, not just OpenAI)
             agent = create_react_agent(llm, self.tools, self.prompt)
 
-            # Create agent executor
+            # Create agent executor with custom error handler
             agent_executor = AgentExecutor(
                 agent=agent,
                 tools=self.tools,
                 verbose=True,
-                handle_parsing_errors=True,
-                max_iterations=5,
+                handle_parsing_errors=self._handle_parsing_error,
+                max_iterations=8,  # Increased to allow for retries after parsing errors
                 return_intermediate_steps=True
             )
 
@@ -253,14 +270,51 @@ Thought:{agent_scratchpad}""")
 
             # Extract tools used from intermediate steps if available
             tools_used = []
+            knowledge_search_used = False
             if "intermediate_steps" in result:
-                tools_used = [step[0].tool for step in result["intermediate_steps"]]
+                logger.info(f"Intermediate steps count: {len(result['intermediate_steps'])}")
+                for step in result["intermediate_steps"]:
+                    tool_name = step[0].tool
+                    tool_input = step[0].tool_input
+                    tool_output = step[1]
+                    logger.info(f"Tool used: {tool_name}, Input: {tool_input}, Output length: {len(str(tool_output))}")
+                    tools_used.append(tool_name)
+                    if tool_name == "knowledge_search":
+                        knowledge_search_used = True
+
+            # If knowledge_search was NOT used, force a search as fallback
+            if not knowledge_search_used:
+                logger.warning("Agent did not use knowledge_search tool! Forcing manual search...")
+                search_result = await self.tools[0]._arun(question)
+                logger.info(f"Forced search result length: {len(search_result)}")
+
+                # If we got actual results, regenerate the answer with this context
+                if "No relevant information found" not in search_result:
+                    logger.info("Forced search found results! Regenerating answer with context...")
+                    enhanced_prompt = f"""Based on the following information from the knowledge base, please answer the question.
+
+Knowledge Base Information:
+{search_result}
+
+Question: {question}
+
+Please provide a comprehensive answer based on the information above."""
+
+                    enhanced_answer = await self.llm_service.generate_response("", enhanced_prompt)
+
+                    return {
+                        "answer": enhanced_answer,
+                        "agent_reasoning": "Agent bypassed search, manually retrieved knowledge base results",
+                        "query": question,
+                        "tools_used": ["knowledge_search (forced)"],
+                        "forced_search": True
+                    }
 
             return {
                 "answer": result["output"],
                 "agent_reasoning": "Used intelligent reasoning with knowledge base tools",
                 "query": question,
-                "tools_used": tools_used if tools_used else [tool.name for tool in self.tools]
+                "tools_used": tools_used if tools_used else []
             }
 
         except Exception as e:
