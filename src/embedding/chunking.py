@@ -168,11 +168,16 @@ class WordBasedChunker(BaseChunker):
 
             chunk_text = " ".join(chunk_words)
 
-            if len(chunk_words) >= self.config.min_chunk_size:
+            # Add chunk if it has content (don't enforce min_chunk_size for small documents)
+            if chunk_words:
                 chunks.append(self._create_chunk(chunk_text, metadata, chunk_index, 0, start_word=start, end_word=actual_end))
                 chunk_index += 1
 
             start += step_size
+
+            # Prevent infinite loop - ensure we make progress
+            if step_size <= 0:
+                break
 
             if end >= len(words):
                 break
@@ -337,11 +342,16 @@ class FixedSizeChunker(BaseChunker):
 
             chunk_text = text[start:end].strip()
 
-            if chunk_text and len(chunk_text) >= self.config.min_chunk_size:
+            # Add chunk if it has content
+            if chunk_text:
                 chunks.append(self._create_chunk(chunk_text, metadata, chunk_index, 0))
                 chunk_index += 1
 
-            start = end - overlap_chars
+            # Move start forward, ensuring progress
+            new_start = end - overlap_chars
+            if new_start <= start:  # Prevent infinite loop
+                new_start = start + 1
+            start = new_start
 
             if start >= len(text):
                 break
@@ -381,7 +391,8 @@ class RecursiveCharacterChunker(BaseChunker):
             # Convert to our format
             formatted_chunks = []
             for i, chunk_text in enumerate(chunks):
-                if len(chunk_text.strip()) >= self.config.min_chunk_size:
+                # Skip empty chunks
+                if chunk_text.strip():
                     formatted_chunks.append(
                         self._create_chunk(chunk_text, metadata, i, len(chunks))
                     )
@@ -419,7 +430,8 @@ class CharacterChunker(BaseChunker):
 
             formatted_chunks = []
             for i, chunk_text in enumerate(chunks):
-                if len(chunk_text.strip()) >= self.config.min_chunk_size:
+                # Skip empty chunks
+                if chunk_text.strip():
                     formatted_chunks.append(
                         self._create_chunk(chunk_text, metadata, i, len(chunks))
                     )
@@ -452,7 +464,8 @@ class TokenBasedChunker(BaseChunker):
 
             formatted_chunks = []
             for i, chunk_text in enumerate(chunks):
-                if len(chunk_text.strip()) >= self.config.min_chunk_size:
+                # Skip empty chunks
+                if chunk_text.strip():
                     chunk = self._create_chunk(chunk_text, metadata, i, len(chunks))
                     # Add token-specific metadata
                     chunk["metadata"]["token_count"] = len(splitter.encode(chunk_text)) if hasattr(splitter, 'encode') else None
@@ -487,7 +500,8 @@ class SentenceTransformersTokenChunker(BaseChunker):
 
             formatted_chunks = []
             for i, chunk_text in enumerate(chunks):
-                if len(chunk_text.strip()) >= self.config.min_chunk_size:
+                # Skip empty chunks
+                if chunk_text.strip():
                     chunk = self._create_chunk(chunk_text, metadata, i, len(chunks))
                     # Add token-specific metadata
                     chunk["metadata"]["tokens_per_chunk"] = self.config.tokens_per_chunk
