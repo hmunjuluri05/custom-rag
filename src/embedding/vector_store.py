@@ -316,33 +316,6 @@ class VectorStore(IVectorStore):
             logger.error(f"Error getting documents: {str(e)}")
             raise Exception(f"Failed to get documents: {str(e)}")
 
-    async def update_documents(self,
-                              ids: List[str],
-                              texts: Optional[List[str]] = None,
-                              metadatas: Optional[List[Dict[str, Any]]] = None) -> bool:
-        """Update existing documents"""
-        try:
-            update_kwargs = {"ids": ids}
-
-            if texts:
-                # Generate new embeddings
-                embeddings = await self.embedding_service.encode_texts(texts)
-                embeddings_list = [emb.tolist() for emb in embeddings]
-                update_kwargs["embeddings"] = embeddings_list
-                update_kwargs["documents"] = texts
-
-            if metadatas:
-                update_kwargs["metadatas"] = metadatas
-
-            self.collection.update(**update_kwargs)
-
-            logger.info(f"Updated {len(ids)} documents")
-            return True
-
-        except Exception as e:
-            logger.error(f"Error updating documents: {str(e)}")
-            return False
-
     async def delete_documents(self, document_ids: List[str]) -> bool:
         """Delete documents from the vector store"""
         try:
