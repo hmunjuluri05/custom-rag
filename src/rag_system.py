@@ -206,7 +206,7 @@ class RAGSystem:
             return await self.query(query_text, top_k, document_filter)
 
     async def query_with_llm(self, query_text: str, top_k: int = 5, document_filter: Optional[str] = None,
-                            use_hybrid_search: bool = True) -> Dict[str, Any]:
+                            use_hybrid_search: bool = True, system_prompt: Optional[str] = None) -> Dict[str, Any]:
         """Query the RAG system and generate response using LLM with source references"""
         try:
             # Get relevant documents using hybrid search if enabled
@@ -216,7 +216,7 @@ class RAGSystem:
                 results = await self.query(query_text, top_k, document_filter)
 
             if not results:
-                response = await self.llm_service.generate_response("", query_text)
+                response = await self.llm_service.generate_response("", query_text, system_prompt=system_prompt)
                 return {
                     "response": response,
                     "sources": [],
@@ -230,8 +230,8 @@ class RAGSystem:
 
             context = "\n\n".join(context_parts)
 
-            # Generate response using LLM
-            response = await self.llm_service.generate_response(context, query_text)
+            # Generate response using LLM with custom system prompt if provided
+            response = await self.llm_service.generate_response(context, query_text, system_prompt=system_prompt)
 
             # Prepare source information - group by document and show best relevance score
             document_sources = {}

@@ -90,10 +90,10 @@ class OpenAILLMModel(LLMModel):
             logger.error(f"Failed to initialize Modern OpenAI client: {str(e)}")
             raise
 
-    async def generate_response(self, context: str, query: str, callbacks: list = None, **kwargs) -> str:
+    async def generate_response(self, context: str, query: str, callbacks: list = None, system_prompt: Optional[str] = None, **kwargs) -> str:
         """Generate response using Modern OpenAI with built-in retry logic"""
 
-        system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
+        default_system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
         Use only the information from the context to answer questions. If the context doesn't contain relevant information,
         say so clearly.
 
@@ -112,6 +112,10 @@ class OpenAILLMModel(LLMModel):
         2. Second point with explanation
 
         Final conclusion paragraph."""
+
+        # Use custom system prompt if provided, otherwise use default
+        if system_prompt is None:
+            system_prompt = default_system_prompt
 
         user_prompt = f"""Context from documents:
 {context}

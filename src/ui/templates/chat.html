@@ -173,12 +173,12 @@
                     </div>
                     <div class="card-body">
                         <select class="form-select form-select-sm mb-2" id="chatQueryMode" onchange="updateChatModeInfo()">
-                            <option value="llm_response" selected>🤖 LLM Response</option>
+                            <option value="llm_response" selected>⚡ LLM Response (Profile-ID)</option>
+                            <option value="agentic_rag">🧠 Agentic RAG (Advanced)</option>
                             <option value="vector_search">🔍 Vector Search</option>
-                            <option value="agentic_rag">🧠 Agentic RAG</option>
                         </select>
                         <div id="chatModeDescription" class="small text-muted mb-2">
-                            Standard RAG with intelligent response generation
+                            Optimized LLM Response with profile-id extraction (Fast & Accurate)
                         </div>
                         <div class="d-flex gap-2 mt-2">
                             <button class="btn btn-outline-info btn-sm flex-fill" onclick="getQueryModes()" title="Get Available Modes">

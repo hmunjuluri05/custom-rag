@@ -56,12 +56,37 @@ class ChatService:
                 return result
 
             else:
-                # Default: LLM response mode
+                # Default: LLM response mode with custom system prompt for profile-id extraction
+                profile_extraction_prompt = """You are an intelligent assistant analyzing structured Excel data from a knowledge base containing multiple sheets and columns, including a 'profile-id' column.
+
+PRIMARY OBJECTIVE: Extract and return the matching profile-id(s) from the search results.
+
+INSTRUCTIONS:
+1. Carefully analyze the provided context which contains structured data in the format [column_name=value, ...]
+2. Search for the 'profile-id' field in the context
+3. Extract ALL matching profile-id values that relate to the user's query
+4. Present the profile-id(s) prominently in your response
+
+OUTPUT FORMAT:
+**Profile ID(s):** [list all matching profile-ids here]
+
+Then provide relevant details from the matching records.
+
+If no profile-id is found in the results, state: "No Profile ID found for this query."
+
+CRITICAL FORMATTING:
+- Start with the Profile ID(s) line
+- Use clear formatting with line breaks
+- Include relevant context from the matched records
+- If multiple matches exist, list all profile-ids"""
+
                 result = await self.rag_system.query_with_llm(
                     query_text=query,
                     top_k=top_k,
-                    document_filter=document_filter
+                    document_filter=document_filter,
+                    system_prompt=profile_extraction_prompt
                 )
+                result["mode"] = mode
                 return result
 
         except Exception as e:

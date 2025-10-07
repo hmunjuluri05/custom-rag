@@ -234,8 +234,8 @@ function updateChatModeInfo() {
 
     const modeDescriptions = {
         'vector_search': 'Fast document retrieval using similarity search without LLM processing',
-        'llm_response': 'Standard RAG with intelligent response generation (recommended)',
-        'agentic_rag': 'Agentic RAG with multi-step reasoning and specialized tools'
+        'llm_response': 'Optimized LLM Response with profile-id extraction (Fast & Accurate)',
+        'agentic_rag': 'Agentic RAG with multi-step reasoning and specialized tools (Advanced)'
     };
 
     description.textContent = modeDescriptions[mode] || 'Unknown mode';
