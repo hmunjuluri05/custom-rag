@@ -89,20 +89,43 @@ class DocumentProcessor(IDocumentProcessor):
         return "\n\n".join(text_content)
 
     def _extract_xlsx(self, file_path: Path) -> str:
-        """Extract text from XLSX files"""
+        """Extract text from XLSX files with enhanced multiple sheet support"""
         workbook = openpyxl.load_workbook(file_path)
         text_content = []
 
         for sheet_name in workbook.sheetnames:
             sheet = workbook[sheet_name]
-            sheet_content = [f"--- Sheet: {sheet_name} ---"]
+            sheet_content = [f"=== SHEET: {sheet_name} ==="]
+
+            # Get headers from first row
+            headers = []
+            first_row = True
 
             # Get all rows with data
-            for row in sheet.iter_rows(values_only=True):
+            for row_idx, row in enumerate(sheet.iter_rows(values_only=True)):
                 row_data = [str(cell) if cell is not None else "" for cell in row]
+
                 # Only include rows that have at least one non-empty cell
                 if any(cell.strip() for cell in row_data if isinstance(cell, str)):
-                    sheet_content.append(" | ".join(row_data))
+                    # First row is treated as headers
+                    if first_row:
+                        headers = row_data
+                        sheet_content.append("COLUMNS: " + " | ".join(row_data))
+                        first_row = False
+                    else:
+                        # Create structured row with column names
+                        row_str = " | ".join(row_data)
+
+                        # Also create a searchable format with column=value pairs
+                        if headers:
+                            structured_data = []
+                            for col_name, value in zip(headers, row_data):
+                                if value.strip():
+                                    structured_data.append(f"{col_name}={value}")
+                            if structured_data:
+                                row_str += " [" + ", ".join(structured_data) + "]"
+
+                        sheet_content.append(row_str)
 
             if len(sheet_content) > 1:  # More than just the header
                 text_content.append("\n".join(sheet_content))
@@ -110,7 +133,7 @@ class DocumentProcessor(IDocumentProcessor):
         return "\n\n".join(text_content)
 
     def _extract_excel(self, file_path: Path) -> str:
-        """Extract text from XLS files using pandas"""
+        """Extract text from XLS files using pandas with enhanced multiple sheet support"""
         try:
             # Read all sheets
             excel_file = pd.ExcelFile(file_path)
@@ -120,19 +143,29 @@ class DocumentProcessor(IDocumentProcessor):
                 df = pd.read_excel(file_path, sheet_name=sheet_name)
 
                 if not df.empty:
-                    sheet_content = [f"--- Sheet: {sheet_name} ---"]
+                    sheet_content = [f"=== SHEET: {sheet_name} ==="]
 
                     # Convert DataFrame to string representation
                     # Replace NaN values with empty strings
                     df_filled = df.fillna('')
 
                     # Add column headers
-                    headers = " | ".join(str(col) for col in df_filled.columns)
-                    sheet_content.append(headers)
+                    headers = [str(col) for col in df_filled.columns]
+                    sheet_content.append("COLUMNS: " + " | ".join(headers))
 
-                    # Add data rows
+                    # Add data rows with structured format
                     for _, row in df_filled.iterrows():
                         row_text = " | ".join(str(val) for val in row.values)
+
+                        # Also create a searchable format with column=value pairs
+                        structured_data = []
+                        for col_name, value in zip(headers, row.values):
+                            value_str = str(value).strip()
+                            if value_str:
+                                structured_data.append(f"{col_name}={value_str}")
+                        if structured_data:
+                            row_text += " [" + ", ".join(structured_data) + "]"
+
                         sheet_content.append(row_text)
 
                     text_content.append("\n".join(sheet_content))

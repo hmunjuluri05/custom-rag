@@ -170,16 +170,25 @@ class RAGAgent:
         ]
 
         # Create ReAct prompt template
-        self.prompt = PromptTemplate.from_template("""You are an intelligent research assistant with access to a knowledge base of documents.
+        self.prompt = PromptTemplate.from_template("""You are an intelligent research assistant with access to a knowledge base that contains Excel files with multiple sheets and columns, including a 'profile-id' column.
+
+PRIMARY OBJECTIVE: When users ask questions, search the knowledge base comprehensively and extract the matching profile-id(s) from the results.
 
 IMPORTANT: You MUST use the knowledge_search tool to search for information before answering questions. Do not assume the knowledge base is empty or unavailable - always try searching first.
 
 STRICT RULES:
 1. For EVERY question, your FIRST action MUST be to use knowledge_search tool with a relevant search query
-2. Only after receiving the search results can you formulate your final answer
-3. If search returns "No relevant information found", THEN you may use general knowledge
-4. NEVER skip the search step
-5. NEVER assume you already searched - always actually search
+2. Search comprehensively across ALL content - the knowledge base contains structured data with column=value pairs
+3. After receiving search results, look for profile-id values in the results
+4. Your Final Answer MUST include the matching profile-id(s) prominently
+5. If multiple matches are found, list all matching profile-ids
+6. If no profile-id is found in the results, state this clearly
+7. NEVER skip the search step
+
+OUTPUT FORMAT for Final Answer:
+- Start with: "Profile ID(s): [list the profile-id values]"
+- Then provide relevant details from the search results
+- If no profile-id found, state: "No profile ID found for this query"
 
 You have access to these tools:
 
@@ -192,13 +201,15 @@ Thought: I need to search the knowledge base for information about [topic]
 Action: knowledge_search
 Action Input: [your search query here]
 Observation: [the search results will appear here]
-Thought: Based on the search results, I now know the final answer
-Final Answer: [your complete answer here]
+Thought: Based on the search results, I can extract the profile-id and provide the answer
+Final Answer: Profile ID(s): [extracted profile-ids]
+[Additional relevant information from the search results]
 
 CRITICAL:
 - The Action must be EXACTLY "knowledge_search" (one of [{tool_names}])
 - The Action Input must be a clear search query
 - Wait for Observation before Final Answer
+- Always extract and highlight the profile-id in your Final Answer
 - Do NOT skip steps or assume you already searched
 
 Begin!
