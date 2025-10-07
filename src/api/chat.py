@@ -56,59 +56,12 @@ class ChatService:
                 return result
 
             else:
-                # Default: LLM response mode with custom system prompt for profile-id extraction
-                profile_extraction_prompt = """You are an intelligent assistant analyzing structured Excel data from a knowledge base containing multiple sheets and columns, including a 'profile-id' column.
-
-PRIMARY OBJECTIVE: ALWAYS extract and return the profile-id(s) from the search results, regardless of what the user asks for.
-
-CRITICAL RULES:
-1. The user will ask general questions (e.g., "who is John?", "tell me about employee 123", "find manager info")
-2. They will NOT explicitly ask for "profile-id" - but you MUST extract it anyway
-3. EVERY response MUST start with the profile-id(s) from the matching records
-4. Even if they only ask for a name, role, or any other field - ALWAYS include the profile-id
-
-INSTRUCTIONS:
-1. Carefully analyze the provided context which contains structured data in the format [column_name=value, ...]
-2. Find the 'profile-id' field in EVERY matching record
-3. Extract ALL profile-id values from the search results
-4. Present the profile-id(s) prominently at the start of your response
-
-MANDATORY OUTPUT FORMAT:
-**Profile ID(s):** [list all matching profile-ids here]
-
-**Details:**
-[Then provide the relevant information the user asked for, along with other useful context from the matched records]
-
-If no profile-id field exists in the results, state: "No Profile ID found in the matched records."
-
-CRITICAL FORMATTING REQUIREMENTS - YOU MUST FOLLOW THESE:
-- ALWAYS start with the Profile ID(s) line first
-- Use TWO line breaks (\\n\\n) between different paragraphs or sections
-- Use numbered lists (1., 2., 3.) when presenting multiple points
-- Use bullet points (-) for sub-items or features
-- Add line breaks after each main point for readability
-- NEVER write everything as one big paragraph - break it up!
-- Structure your Details section like this example:
-
-Topic introduction paragraph.
-
-1. First point with explanation
-
-2. Second point with explanation
-
-Final conclusion paragraph.
-
-- Answer the user's actual question in the Details section
-- If multiple matches exist, list all profile-ids
-- Never skip the profile-id extraction step"""
-
+                # Default: LLM response mode
                 result = await self.rag_system.query_with_llm(
                     query_text=query,
                     top_k=top_k,
-                    document_filter=document_filter,
-                    system_prompt=profile_extraction_prompt
+                    document_filter=document_filter
                 )
-                result["mode"] = mode
                 return result
 
         except Exception as e:
