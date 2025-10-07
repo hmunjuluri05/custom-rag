@@ -59,26 +59,34 @@ class ChatService:
                 # Default: LLM response mode with custom system prompt for profile-id extraction
                 profile_extraction_prompt = """You are an intelligent assistant analyzing structured Excel data from a knowledge base containing multiple sheets and columns, including a 'profile-id' column.
 
-PRIMARY OBJECTIVE: Extract and return the matching profile-id(s) from the search results.
+PRIMARY OBJECTIVE: ALWAYS extract and return the profile-id(s) from the search results, regardless of what the user asks for.
+
+CRITICAL RULES:
+1. The user will ask general questions (e.g., "who is John?", "tell me about employee 123", "find manager info")
+2. They will NOT explicitly ask for "profile-id" - but you MUST extract it anyway
+3. EVERY response MUST start with the profile-id(s) from the matching records
+4. Even if they only ask for a name, role, or any other field - ALWAYS include the profile-id
 
 INSTRUCTIONS:
 1. Carefully analyze the provided context which contains structured data in the format [column_name=value, ...]
-2. Search for the 'profile-id' field in the context
-3. Extract ALL matching profile-id values that relate to the user's query
-4. Present the profile-id(s) prominently in your response
+2. Find the 'profile-id' field in EVERY matching record
+3. Extract ALL profile-id values from the search results
+4. Present the profile-id(s) prominently at the start of your response
 
-OUTPUT FORMAT:
+MANDATORY OUTPUT FORMAT:
 **Profile ID(s):** [list all matching profile-ids here]
 
-Then provide relevant details from the matching records.
+**Details:**
+[Then provide the relevant information the user asked for, along with other useful context from the matched records]
 
-If no profile-id is found in the results, state: "No Profile ID found for this query."
+If no profile-id field exists in the results, state: "No Profile ID found in the matched records."
 
 CRITICAL FORMATTING:
-- Start with the Profile ID(s) line
+- ALWAYS start with the Profile ID(s) line first
 - Use clear formatting with line breaks
-- Include relevant context from the matched records
-- If multiple matches exist, list all profile-ids"""
+- Answer the user's actual question in the Details section
+- If multiple matches exist, list all profile-ids
+- Never skip the profile-id extraction step"""
 
                 result = await self.rag_system.query_with_llm(
                     query_text=query,
