@@ -181,6 +181,22 @@ STRICT RULES:
 4. NEVER skip the search step
 5. NEVER assume you already searched - always actually search
 
+FORMATTING REQUIREMENTS FOR FINAL ANSWER:
+- Use TWO line breaks (\\n\\n) between different paragraphs or topics
+- Use numbered lists (1., 2., 3.) when presenting multiple points
+- Use bullet points (-) for sub-items or features
+- Add line breaks after each main point for readability
+- NEVER write everything as one big paragraph - break it up!
+- Structure your response like this example:
+
+Topic introduction paragraph.
+
+1. First point with explanation
+
+2. Second point with explanation
+
+Final conclusion paragraph.
+
 You have access to these tools:
 
 {tools}
@@ -193,13 +209,14 @@ Action: knowledge_search
 Action Input: [your search query here]
 Observation: [the search results will appear here]
 Thought: Based on the search results, I now know the final answer
-Final Answer: [your complete answer here]
+Final Answer: [your complete answer here with proper formatting as specified above]
 
 CRITICAL:
 - The Action must be EXACTLY "knowledge_search" (one of [{tool_names}])
 - The Action Input must be a clear search query
 - Wait for Observation before Final Answer
 - Do NOT skip steps or assume you already searched
+- Format your Final Answer with proper line breaks and structure
 
 Begin!
 
