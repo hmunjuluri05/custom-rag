@@ -381,10 +381,10 @@ class GoogleLLMModel(LLMModel):
             logger.error(f"Failed to initialize Modern Google client: {str(e)}")
             raise
 
-    async def generate_response(self, context: str, query: str, **kwargs) -> str:
+    async def generate_response(self, context: str, query: str, callbacks: list = None, system_prompt: Optional[str] = None, **kwargs) -> str:
         """Generate response using Modern Google model via API Gateway"""
 
-        system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
+        default_system_prompt = """You are a helpful assistant that answers questions based on provided context from documents.
         Use only the information from the context to answer questions. If the context doesn't contain relevant information,
         say so clearly.
 
@@ -404,6 +404,10 @@ class GoogleLLMModel(LLMModel):
 
         Final conclusion paragraph."""
 
+        # Use custom system prompt if provided, otherwise use default
+        if system_prompt is None:
+            system_prompt = default_system_prompt
+
         user_prompt = f"""Context from documents:
 {context}
 
@@ -420,6 +424,7 @@ Please answer the question based only on the provided context."""
             ]
 
             # Use Modern's async invoke method
+            # Note: Google LangChain integration may not support callbacks the same way
             response = await self.llm.ainvoke(messages)
             return response.content.strip()
 
