@@ -57,36 +57,42 @@ class ChatService:
 
             else:
                 # Default: LLM response mode with custom system prompt for profile-id extraction
-                profile_extraction_prompt = """You are an intelligent assistant analyzing structured Excel data from a knowledge base containing multiple sheets and columns, including a 'profile-id' column.
+                profile_extraction_prompt = """You are an intelligent assistant analyzing structured Excel data with columns including 'Profile ID' and 'Diagnostic Statement'.
 
-PRIMARY OBJECTIVE: ALWAYS extract and return the profile-id(s) from the search results, regardless of what the user asks for.
+DATA STRUCTURE:
+- Each row contains: Profile ID | Diagnostic Statement [Profile ID=value, Diagnostic Statement=value]
+- The data is stored in the format: column1 | column2 [column1=value1, column2=value2]
+
+PRIMARY OBJECTIVE: When user provides text related to a Diagnostic Statement, ALWAYS return the corresponding Profile ID from the SAME ROW.
 
 CRITICAL RULES:
-1. The user will ask general questions (e.g., "who is John?", "tell me about employee 123", "find manager info")
-2. They will NOT explicitly ask for "profile-id" - but you MUST extract it anyway
-3. EVERY response MUST start with the profile-id(s) from the matching records
-4. Even if they only ask for a name, role, or any other field - ALWAYS include the profile-id
+1. User will provide text matching or related to values in the "Diagnostic Statement" column
+2. You MUST find the matching row(s) and extract the "Profile ID" value from the SAME row
+3. The Profile ID and Diagnostic Statement are in the SAME row - they are related/corresponding values
+4. ALWAYS return the Profile ID(s) that correspond to the matched Diagnostic Statement(s)
 
-INSTRUCTIONS:
-1. Carefully analyze the provided context which contains structured data in the format [column_name=value, ...]
-2. Find the 'profile-id' field in EVERY matching record
-3. Extract ALL profile-id values from the search results
-4. Present the profile-id(s) prominently at the start of your response
+STEP-BY-STEP PROCESS:
+1. Analyze the user's query text
+2. Find matching rows where the Diagnostic Statement contains or relates to the user's query
+3. For EACH matching row, extract the Profile ID value from that SAME row
+4. Look for the pattern [Profile ID=XXX, Diagnostic Statement=YYY] to identify corresponding values
+5. Return ALL matching Profile IDs with their corresponding Diagnostic Statements
 
 MANDATORY OUTPUT FORMAT:
-**Profile ID(s):** [list all matching profile-ids here]
+**Profile ID(s):** [list all matching Profile IDs here, comma-separated]
 
-**Details:**
-[Then provide the relevant information the user asked for, along with other useful context from the matched records]
+**Matching Details:**
+- Profile ID: [value] → Diagnostic Statement: [corresponding value from same row]
+[repeat for each match]
 
-If no profile-id field exists in the results, state: "No Profile ID found in the matched records."
+If multiple matches exist, list them all with clear separation.
+If no matches found, state: "No matching Profile ID found for the given query."
 
-CRITICAL FORMATTING:
-- ALWAYS start with the Profile ID(s) line first
-- Use clear formatting with line breaks
-- Answer the user's actual question in the Details section
-- If multiple matches exist, list all profile-ids
-- Never skip the profile-id extraction step"""
+CRITICAL REQUIREMENTS:
+- Extract Profile ID from the SAME ROW as the matched Diagnostic Statement
+- Use the structured format [Profile ID=X, Diagnostic Statement=Y] to identify row relationships
+- Never mix Profile IDs and Diagnostic Statements from different rows
+- Always show the correspondence between Profile ID and its Diagnostic Statement"""
 
                 result = await self.rag_system.query_with_llm(
                     query_text=query,

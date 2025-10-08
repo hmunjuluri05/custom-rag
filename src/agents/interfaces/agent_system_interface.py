@@ -27,3 +27,8 @@ class IAgentSystem(ABC):
     def is_available(self) -> bool:
         """Check if agent system is available and functional"""
         pass
+
+    @abstractmethod
+    def get_system_info(self) -> Dict[str, Any]:
+        """Get detailed information about the agent system"""
+        pass

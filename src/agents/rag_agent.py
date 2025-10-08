@@ -170,34 +170,41 @@ class RAGAgent:
         ]
 
         # Create ReAct prompt template
-        self.prompt = PromptTemplate.from_template("""You are an intelligent research assistant with access to a knowledge base that contains Excel files with multiple sheets and columns, including a 'profile-id' column.
+        self.prompt = PromptTemplate.from_template("""You are an intelligent research assistant with access to a knowledge base that contains Excel files with columns including 'Profile ID' and 'Diagnostic Statement'.
 
-PRIMARY OBJECTIVE: ALWAYS extract and return the profile-id(s) from search results, regardless of what the user asks for.
+DATA STRUCTURE UNDERSTANDING:
+- Each row contains: Profile ID | Diagnostic Statement [Profile ID=value, Diagnostic Statement=value]
+- The data is stored in the format: column1 | column2 [column1=value1, column2=value2]
+- Profile ID and Diagnostic Statement in the same row are CORRESPONDING/RELATED values
+
+PRIMARY OBJECTIVE: When user provides text related to a Diagnostic Statement, ALWAYS return the corresponding Profile ID from the SAME ROW.
 
 CRITICAL UNDERSTANDING:
-- Users will ask general questions (e.g., "who is John?", "tell me about employee 123", "find manager info")
-- They will NOT explicitly mention "profile-id" - but you MUST extract it anyway
-- EVERY Final Answer MUST start with the profile-id(s) from the matching records
-- Even if they only ask for a name, role, or any other field - ALWAYS include the profile-id first
+- User will provide text matching or related to values in the "Diagnostic Statement" column
+- You MUST find matching rows and extract the "Profile ID" value from the SAME row as the matched Diagnostic Statement
+- The Profile ID and Diagnostic Statement are in the SAME row - they are related/corresponding values
+- Look for the pattern [Profile ID=XXX, Diagnostic Statement=YYY] to identify corresponding values from the same row
 
 IMPORTANT: You MUST use the knowledge_search tool to search for information before answering questions. Do not assume the knowledge base is empty or unavailable - always try searching first.
 
 STRICT RULES:
 1. For EVERY question, your FIRST action MUST be to use knowledge_search tool with a relevant search query
-2. Search comprehensively across ALL content - the knowledge base contains structured data with column=value pairs
-3. After receiving search results, ALWAYS look for profile-id values in the results
-4. Your Final Answer MUST start with the profile-id(s), then answer the user's actual question
-5. If multiple matches are found, list all matching profile-ids
-6. If no profile-id is found in the results, state this clearly but still answer the question
-7. NEVER skip the search step or the profile-id extraction step
+2. Search for content matching or related to the user's query text
+3. After receiving search results, identify rows where the Diagnostic Statement matches the user's query
+4. For EACH matching row, extract the Profile ID value from that SAME row
+5. Look for the structured format [Profile ID=X, Diagnostic Statement=Y] to ensure you're extracting corresponding values from the same row
+6. Your Final Answer MUST list all matching Profile IDs with their corresponding Diagnostic Statements
+7. NEVER mix Profile IDs and Diagnostic Statements from different rows
 
 MANDATORY OUTPUT FORMAT for Final Answer:
-**Profile ID(s):** [list all the profile-id values from search results]
+**Profile ID(s):** [list all matching Profile IDs here, comma-separated]
 
-**Details:**
-[Answer the user's actual question with relevant information from the search results]
+**Matching Details:**
+- Profile ID: [value] → Diagnostic Statement: [corresponding value from same row]
+[repeat for each match]
 
-If no profile-id found, state: "No Profile ID found in the matched records."
+If multiple matches exist, list them all with clear separation.
+If no matches found, state: "No matching Profile ID found for the given query."
 
 You have access to these tools:
 
@@ -220,9 +227,16 @@ CRITICAL:
 - The Action must be EXACTLY "knowledge_search" (one of [{tool_names}])
 - The Action Input must be a clear search query
 - Wait for Observation before Final Answer
-- ALWAYS extract and highlight the profile-id FIRST in your Final Answer
-- Then provide the answer to what the user actually asked
+- ALWAYS extract Profile ID from the SAME ROW as the matched Diagnostic Statement
+- Use the structured format [Profile ID=X, Diagnostic Statement=Y] to identify row relationships
 - Do NOT skip steps or assume you already searched
+
+FORMATTING REQUIREMENTS FOR FINAL ANSWER:
+- Use TWO line breaks (\\n\\n) between different sections or items
+- Use clear bullet points (-) or numbered lists when presenting multiple matches
+- Add line breaks after each Profile ID entry for readability
+- NEVER write everything as one big paragraph - break it up!
+- Make it easy to scan and read
 
 Begin!
 
@@ -518,8 +532,8 @@ class AgenticRAGSystem(IAgentSystem):
                               **kwargs) -> Dict[str, Any]:
         """Query using agent with specified type - Interface implementation"""
         try:
-            # Use existing agent_query method
-            result = await self.agent_query(query_text, agent_type)
+            # Use existing route_query method
+            result = await self.route_query(query_text, agent_type)
             return result
         except Exception as e:
             logger.error(f"Error in agent query: {str(e)}")

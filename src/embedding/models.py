@@ -481,7 +481,7 @@ class EmbeddingService:
         self.model_name = model_name
         self.model = EmbeddingModelFactory.create_model(provider=provider, model_name=model_name)
 
-    async def encode_texts(self, texts: List[str], batch_size: int = 32) -> List[np.ndarray]:
+    async def encode_texts(self, texts: List[str], batch_size: int = 100) -> List[np.ndarray]:
         """Encode texts using Modern embeddings with robust error handling"""
         if not texts:
             return []

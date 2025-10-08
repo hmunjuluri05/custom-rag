@@ -658,10 +658,10 @@ class LLMService(ILLMService):
         else:
             self.callback_manager = None
 
-    async def generate_response(self, context: str, query: str) -> str:
+    async def generate_response(self, context: str, query: str, system_prompt: Optional[str] = None) -> str:
         """Generate response using the configured Modern LLM"""
         callbacks = self.callback_manager.get_callbacks() if self.callback_manager else []
-        return await self.llm_model.generate_response(context, query, callbacks=callbacks)
+        return await self.llm_model.generate_response(context, query, callbacks=callbacks, system_prompt=system_prompt)
 
     async def generate_response_stream(self, context: str, query: str):
         """Generate streaming response using the configured Modern LLM"""

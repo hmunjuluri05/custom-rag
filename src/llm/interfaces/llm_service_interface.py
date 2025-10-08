@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, AsyncGenerator
+from typing import Dict, Any, AsyncGenerator, Optional
 
 
 class ILLMService(ABC):
     """Interface for LLM service operations"""
 
     @abstractmethod
-    async def generate_response(self, context: str, query: str) -> str:
+    async def generate_response(self, context: str, query: str, system_prompt: Optional[str] = None) -> str:
         """Generate a response using context and query"""
         pass
 

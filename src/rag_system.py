@@ -1,5 +1,4 @@
 import uuid
-import os
 from typing import List, Dict, Any, Optional
 import logging
 from datetime import datetime
@@ -807,22 +806,5 @@ class RAGSystem:
         return self.agent_system.get_system_info()
 
 
-def create_rag_system(**kwargs) -> 'RAGSystem':
-    """
-    Factory function to create a modern RAG system with dependency injection.
-
-    This is a convenience function that delegates to the dependency injection factory.
-    For full control over dependencies, use RAGSystemFactory directly.
-
-    Features:
-    - Modern embedding models with enterprise API gateway support
-    - Streaming LLM responses with comprehensive monitoring
-    - Advanced agent workflows for multi-step reasoning
-    - Vector store abstractions for optimal performance
-    - Full dependency injection for testing and modularity
-    """
-    logger.info("Creating modern RAG system with dependency injection")
-
-    # Import and use the DI factory
-    from .dependency_injection import RAGSystemFactory
-    return RAGSystemFactory.create_default_rag_system(**kwargs)
+# NOTE: create_rag_system is now in rag_factory.py
+# This duplicate function has been removed to avoid import errors
