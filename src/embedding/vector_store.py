@@ -69,7 +69,7 @@ class VectorStore(IVectorStore):
                            texts: List[str],
                            metadatas: List[Dict[str, Any]] = None,
                            document_ids: List[str] = None) -> List[str]:
-        """Add documents to the vector store"""
+        """Add documents to the vector store with validation"""
         try:
             if not texts:
                 raise ValueError("No texts provided")
@@ -84,11 +84,25 @@ class VectorStore(IVectorStore):
             if document_ids is None:
                 document_ids = [str(uuid.uuid4()) for _ in texts]
 
+            logger.info(f"Generating embeddings for {len(texts)} text chunks...")
+
             # Generate embeddings (handle both sync and async)
             embeddings = await self.embedding_service.encode_texts(texts)
 
+            # Validate embeddings were generated for all texts
+            if len(embeddings) != len(texts):
+                logger.error(f"Embedding count mismatch: expected {len(texts)}, got {len(embeddings)}")
+                raise ValueError(f"Generated {len(embeddings)} embeddings for {len(texts)} texts. Some embeddings failed to generate.")
+
             # Convert numpy arrays to lists for ChromaDB
             embeddings_list = [emb.tolist() for emb in embeddings]
+
+            # Final validation before adding to ChromaDB
+            if not (len(document_ids) == len(embeddings_list) == len(texts) == len(metadatas)):
+                logger.error(f"Length mismatch - ids:{len(document_ids)}, embeddings:{len(embeddings_list)}, texts:{len(texts)}, metadatas:{len(metadatas)}")
+                raise ValueError(f"Unequal lengths: ids:{len(document_ids)}, embeddings:{len(embeddings_list)}, texts:{len(texts)}, metadatas:{len(metadatas)}")
+
+            logger.info(f"Adding {len(texts)} documents to vector store...")
 
             # Add to ChromaDB
             self.collection.add(

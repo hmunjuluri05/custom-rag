@@ -482,7 +482,7 @@ class EmbeddingService:
         self.model = EmbeddingModelFactory.create_model(provider=provider, model_name=model_name)
 
     async def encode_texts(self, texts: List[str], batch_size: int = 32) -> List[np.ndarray]:
-        """Encode texts using Modern embeddings"""
+        """Encode texts using Modern embeddings with robust error handling"""
         if not texts:
             return []
 
@@ -490,17 +490,46 @@ class EmbeddingService:
             # Modern handles batching internally, so we can pass all texts at once
             # But we'll still respect the batch_size for very large datasets
             all_embeddings = []
+            total_batches = (len(texts) + batch_size - 1) // batch_size
 
-            for i in range(0, len(texts), batch_size):
+            for batch_idx, i in enumerate(range(0, len(texts), batch_size)):
                 batch = texts[i:i + batch_size]
-                batch_embeddings = await self.model.encode(batch)
+                batch_num = batch_idx + 1
 
-                # Convert numpy array to list of individual embeddings
-                if len(batch_embeddings.shape) == 2:
-                    all_embeddings.extend([emb for emb in batch_embeddings])
-                else:
-                    all_embeddings.extend(batch_embeddings)
+                logger.info(f"Encoding batch {batch_num}/{total_batches} ({len(batch)} texts)...")
 
+                try:
+                    batch_embeddings = await self.model.encode(batch)
+
+                    # Validate batch embeddings
+                    if batch_embeddings is None or len(batch_embeddings) == 0:
+                        logger.error(f"Batch {batch_num} returned empty embeddings")
+                        raise ValueError(f"Batch {batch_num} failed to generate embeddings")
+
+                    if len(batch_embeddings) != len(batch):
+                        logger.error(f"Batch {batch_num} embedding count mismatch: expected {len(batch)}, got {len(batch_embeddings)}")
+                        raise ValueError(f"Batch {batch_num} generated {len(batch_embeddings)} embeddings for {len(batch)} texts")
+
+                    # Convert numpy array to list of individual embeddings
+                    if len(batch_embeddings.shape) == 2:
+                        all_embeddings.extend([emb for emb in batch_embeddings])
+                    else:
+                        all_embeddings.extend(batch_embeddings)
+
+                    logger.info(f"Batch {batch_num}/{total_batches} completed successfully")
+
+                except Exception as batch_error:
+                    logger.error(f"Error in batch {batch_num}/{total_batches}: {str(batch_error)}")
+                    # Log the problematic texts for debugging
+                    logger.error(f"Batch {batch_num} text lengths: {[len(t) for t in batch]}")
+                    raise
+
+            # Final validation
+            if len(all_embeddings) != len(texts):
+                logger.error(f"Total embedding mismatch: expected {len(texts)}, got {len(all_embeddings)}")
+                raise ValueError(f"Generated {len(all_embeddings)} embeddings for {len(texts)} texts")
+
+            logger.info(f"Successfully encoded {len(texts)} texts into {len(all_embeddings)} embeddings")
             return all_embeddings
 
         except Exception as e:
