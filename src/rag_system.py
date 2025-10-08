@@ -805,6 +805,3 @@ class RAGSystem:
 
         return self.agent_system.get_system_info()
 
-
-# NOTE: create_rag_system is now in rag_factory.py
-# This duplicate function has been removed to avoid import errors
