@@ -49,18 +49,35 @@ class FileUploadService:
             logger.error(f"Error saving file {file.filename}: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
 
-    async def process_uploaded_files(self, files: List[UploadFile]) -> List[Dict[str, Any]]:
-        """Process multiple uploaded files"""
+    async def process_uploaded_files(self, files: List[UploadFile], progress_callback=None) -> List[Dict[str, Any]]:
+        """Process multiple uploaded files with optional progress tracking"""
         processed_files = []
 
-        for file in files:
+        for file_idx, file in enumerate(files):
             try:
+                if progress_callback:
+                    progress_callback({
+                        'stage': 'saving',
+                        'current_file': file.filename,
+                        'file_number': file_idx + 1,
+                        'total_files': len(files),
+                        'progress': int((file_idx / len(files)) * 100)
+                    })
 
                 # Save file
                 file_path = await self.save_uploaded_file(file)
 
-                # Extract text content
-                text_content = self.document_processor.extract_text(file_path)
+                if progress_callback:
+                    progress_callback({
+                        'stage': 'extracting',
+                        'current_file': file.filename,
+                        'file_number': file_idx + 1,
+                        'total_files': len(files),
+                        'progress': int((file_idx / len(files)) * 100)
+                    })
+
+                # Extract text content with progress callback
+                text_content = self.document_processor.extract_text(file_path, progress_callback)
 
                 # Get metadata
                 metadata = self.document_processor.get_document_metadata(file_path)

@@ -593,21 +593,32 @@ class RAGSystem:
             logger.error(f"Error getting system stats: {str(e)}")
             return {"error": str(e)}
 
-    async def process_and_add_document(self, file_path: str, filename: str) -> str:
-        """Process a document file and add it to the RAG system"""
+    async def process_and_add_document(self, file_path: str, filename: str, progress_callback=None) -> str:
+        """Process a document file and add it to the RAG system with optional progress tracking"""
         try:
             from pathlib import Path
 
-            # Extract text using document processor
-            text_content = self.document_processor.extract_text(Path(file_path))
+            # Extract text using document processor with progress callback
+            if progress_callback:
+                progress_callback({'stage': 'extracting', 'progress': 0, 'message': f'Starting to extract {filename}'})
+
+            text_content = self.document_processor.extract_text(Path(file_path), progress_callback)
+
+            if progress_callback:
+                progress_callback({'stage': 'chunking', 'progress': 0, 'message': 'Chunking document'})
 
             # Add to RAG system
             document_id = await self.add_document(text_content, file_path, filename)
+
+            if progress_callback:
+                progress_callback({'stage': 'complete', 'progress': 100, 'message': 'Document processed successfully', 'document_id': document_id})
 
             return document_id
 
         except Exception as e:
             logger.error(f"Error processing and adding document {filename}: {str(e)}")
+            if progress_callback:
+                progress_callback({'stage': 'error', 'progress': 0, 'message': f'Error: {str(e)}'})
             raise Exception(f"Failed to process document: {str(e)}")
 
     async def update_chunking_config(self, new_config: ChunkingConfig):

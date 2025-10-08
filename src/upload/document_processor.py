@@ -22,8 +22,8 @@ class DocumentProcessor(IDocumentProcessor):
             '.txt': self._extract_text
         }
 
-    def extract_text(self, file_path: Path) -> str:
-        """Extract text content from a document file"""
+    def extract_text(self, file_path: Path, progress_callback=None) -> str:
+        """Extract text content from a document file with optional progress tracking"""
 
         file_extension = file_path.suffix.lower()
 
@@ -32,7 +32,12 @@ class DocumentProcessor(IDocumentProcessor):
 
         try:
             extractor = self.supported_formats[file_extension]
-            text_content = extractor(file_path)
+
+            # Pass progress_callback for Excel files
+            if file_extension in ['.xlsx', '.xls']:
+                text_content = extractor(file_path, progress_callback)
+            else:
+                text_content = extractor(file_path)
 
             if not text_content.strip():
                 logger.warning(f"No text content extracted from {file_path}")
@@ -88,14 +93,30 @@ class DocumentProcessor(IDocumentProcessor):
 
         return "\n\n".join(text_content)
 
-    def _extract_xlsx(self, file_path: Path) -> str:
-        """Extract text from XLSX files with enhanced multiple sheet support"""
+    def _extract_xlsx(self, file_path: Path, progress_callback=None) -> str:
+        """Extract text from XLSX files with enhanced multiple sheet support and progress tracking"""
         workbook = openpyxl.load_workbook(file_path)
         text_content = []
 
-        for sheet_name in workbook.sheetnames:
+        total_sheets = len(workbook.sheetnames)
+        logger.info(f"Processing Excel file with {total_sheets} sheets")
+
+        for sheet_idx, sheet_name in enumerate(workbook.sheetnames):
             sheet = workbook[sheet_name]
             sheet_content = [f"=== SHEET: {sheet_name} ==="]
+
+            # Calculate progress
+            progress_percent = int((sheet_idx / total_sheets) * 100)
+            logger.info(f"Processing sheet {sheet_idx + 1}/{total_sheets}: '{sheet_name}' ({progress_percent}%)")
+
+            if progress_callback:
+                progress_callback({
+                    'stage': 'extracting',
+                    'current_sheet': sheet_name,
+                    'sheet_number': sheet_idx + 1,
+                    'total_sheets': total_sheets,
+                    'progress': progress_percent
+                })
 
             # Get headers from first row
             headers = []
@@ -130,16 +151,44 @@ class DocumentProcessor(IDocumentProcessor):
             if len(sheet_content) > 1:  # More than just the header
                 text_content.append("\n".join(sheet_content))
 
+        # Final progress
+        if progress_callback:
+            progress_callback({
+                'stage': 'extracting',
+                'current_sheet': 'Complete',
+                'sheet_number': total_sheets,
+                'total_sheets': total_sheets,
+                'progress': 100
+            })
+
+        logger.info("Excel extraction complete")
         return "\n\n".join(text_content)
 
-    def _extract_excel(self, file_path: Path) -> str:
-        """Extract text from XLS files using pandas with enhanced multiple sheet support"""
+    def _extract_excel(self, file_path: Path, progress_callback=None) -> str:
+        """Extract text from XLS files using pandas with enhanced multiple sheet support and progress tracking"""
         try:
             # Read all sheets
             excel_file = pd.ExcelFile(file_path)
             text_content = []
 
-            for sheet_name in excel_file.sheet_names:
+            total_sheets = len(excel_file.sheet_names)
+            logger.info(f"Processing Excel file with {total_sheets} sheets")
+
+            for sheet_idx, sheet_name in enumerate(excel_file.sheet_names):
+                # Calculate progress
+                progress_percent = int((sheet_idx / total_sheets) * 100)
+                logger.info(f"Processing sheet {sheet_idx + 1}/{total_sheets}: '{sheet_name}' ({progress_percent}%)")
+
+                if progress_callback:
+                    progress_callback({
+                        'stage': 'extracting',
+                        'current_sheet': sheet_name,
+                        'sheet_number': sheet_idx + 1,
+                        'total_sheets': total_sheets,
+                        'progress': progress_percent
+                    })
+
+                sheet_name_for_read = sheet_name  # Keep original for read
                 df = pd.read_excel(file_path, sheet_name=sheet_name)
 
                 if not df.empty:
@@ -170,6 +219,17 @@ class DocumentProcessor(IDocumentProcessor):
 
                     text_content.append("\n".join(sheet_content))
 
+            # Final progress
+            if progress_callback:
+                progress_callback({
+                    'stage': 'extracting',
+                    'current_sheet': 'Complete',
+                    'sheet_number': total_sheets,
+                    'total_sheets': total_sheets,
+                    'progress': 100
+                })
+
+            logger.info("Excel extraction complete")
             return "\n\n".join(text_content)
 
         except Exception as e:
